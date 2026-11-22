@@ -171,6 +171,7 @@ final class SurvivalGameAudio {
         let targetRate = forcedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: engine)
         let outputFormat = AudioOutputFormatResolver.stereoFormat(sampleRate: targetRate)
 
+        _ = engine.outputNode
         engine.connect(targetGraph.sampler, to: targetGraph.sfxMixer, format: outputFormat)
         engine.connect(targetGraph.sfxMixer, to: targetGraph.limiter, format: outputFormat)
         engine.connect(targetGraph.limiter, to: engine.mainMixerNode, format: outputFormat)
@@ -179,7 +180,6 @@ final class SurvivalGameAudio {
         engine.connect(targetGraph.rootBassSampler, to: targetGraph.rootBassEQ, format: outputFormat)
         engine.connect(targetGraph.rootBassEQ, to: targetGraph.rootBassMixer, format: outputFormat)
         engine.connect(targetGraph.rootBassMixer, to: engine.mainMixerNode, format: outputFormat)
-        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
 
         lastAppliedSampleRate = outputFormat.sampleRate
         configureRootBassEQ(on: targetGraph)

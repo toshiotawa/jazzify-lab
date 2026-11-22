@@ -62,13 +62,25 @@ enum AudioOutputFormatResolver {
     static func postStartMismatchedRate(
         actualOutputSampleRate: Double,
         expectedSampleRate: Double,
+        mainMixerOutputSampleRate: Double? = nil,
+        outputNodeInputSampleRate: Double? = nil,
         toleranceHz: Double = sampleRateToleranceHz
     ) -> Double? {
         guard actualOutputSampleRate.isFinite, actualOutputSampleRate > 0 else { return nil }
-        guard !sampleRatesMatch(actualOutputSampleRate, expectedSampleRate, toleranceHz: toleranceHz) else {
-            return nil
+        if !sampleRatesMatch(actualOutputSampleRate, expectedSampleRate, toleranceHz: toleranceHz) {
+            return actualOutputSampleRate
         }
-        return actualOutputSampleRate
+        if let mixerRate = mainMixerOutputSampleRate,
+           mixerRate.isFinite, mixerRate > 0,
+           !sampleRatesMatch(mixerRate, actualOutputSampleRate, toleranceHz: toleranceHz) {
+            return actualOutputSampleRate
+        }
+        if let inputRate = outputNodeInputSampleRate,
+           inputRate.isFinite, inputRate > 0,
+           !sampleRatesMatch(inputRate, actualOutputSampleRate, toleranceHz: toleranceHz) {
+            return actualOutputSampleRate
+        }
+        return nil
     }
 
     static func postStartMismatchedRate(
@@ -76,9 +88,13 @@ enum AudioOutputFormatResolver {
         expectedSampleRate: Double
     ) -> Double? {
         let actualRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
+        let inputRate = engine.outputNode.inputFormat(forBus: 0).sampleRate
+        let mixerRate = engine.mainMixerNode.outputFormat(forBus: 0).sampleRate
         return postStartMismatchedRate(
             actualOutputSampleRate: actualRate,
-            expectedSampleRate: expectedSampleRate
+            expectedSampleRate: expectedSampleRate,
+            mainMixerOutputSampleRate: mixerRate,
+            outputNodeInputSampleRate: inputRate
         )
     }
 
@@ -160,7 +176,7 @@ enum AudioRateDiagnostics {
         let mode = session.mode.rawValue
         let actualRate = session.sampleRate
         let actualBuffer = session.ioBufferDuration
-        logger.info(
+        logger.notice(
             "sessionConfigure cat=\(category, privacy: .public) mode=\(mode, privacy: .public) captured=\(isCaptured, privacy: .public) rec=\(recordingEnabled, privacy: .public) prefRate=\(preferredSampleRate, privacy: .public) actualRate=\(actualRate, privacy: .public) targetBuf=\(targetIOBufferDuration, privacy: .public) actualBuf=\(actualBuffer, privacy: .public) outputs=\(outputs, privacy: .public) didChange=\(didChange, privacy: .public)"
         )
     }
@@ -178,9 +194,10 @@ enum AudioRateDiagnostics {
         let mixerRate = engine.mainMixerNode.outputFormat(forBus: 0).sampleRate
         let sessionRate = session.sampleRate
         let bufRate = bufferSampleRate ?? -1
+        let running = engine.isRunning
         let outputs = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
-        logger.info(
-            "engineStart tag=\(tag, privacy: .public) deckRate=\(deckSampleRate, privacy: .public) bufRate=\(bufRate, privacy: .public) outNodeOut=\(outRate, privacy: .public) outNodeIn=\(outInRate, privacy: .public) mainMixer=\(mixerRate, privacy: .public) sessionRate=\(sessionRate, privacy: .public) retry=\(didRetry, privacy: .public) outputs=\(outputs, privacy: .public)"
+        logger.notice(
+            "engineStart tag=\(tag, privacy: .public) running=\(running, privacy: .public) deckRate=\(deckSampleRate, privacy: .public) bufRate=\(bufRate, privacy: .public) outNodeOut=\(outRate, privacy: .public) outNodeIn=\(outInRate, privacy: .public) mainMixer=\(mixerRate, privacy: .public) sessionRate=\(sessionRate, privacy: .public) retry=\(didRetry, privacy: .public) outputs=\(outputs, privacy: .public)"
         )
     }
 }

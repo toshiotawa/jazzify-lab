@@ -198,6 +198,34 @@ final class EarTrainingAudioCaptureTests: XCTestCase {
                 expectedSampleRate: 48_000
             )
         )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000,
+                mainMixerOutputSampleRate: 44_100,
+                outputNodeInputSampleRate: 48_000
+            ) ?? 0,
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000,
+                mainMixerOutputSampleRate: 48_000,
+                outputNodeInputSampleRate: 44_100
+            ) ?? 0,
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertNil(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000,
+                mainMixerOutputSampleRate: 48_000,
+                outputNodeInputSampleRate: 48_000
+            )
+        )
     }
 
     func testSampleRatesMatchTolerance() {

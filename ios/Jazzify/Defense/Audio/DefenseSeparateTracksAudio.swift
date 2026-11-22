@@ -396,9 +396,9 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         sourceNode = node
         engine.attach(node)
         engine.attach(masterMixer)
+        _ = engine.outputNode
         engine.connect(node, to: masterMixer, format: sourceFormat)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: sourceFormat)
-        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         sourcePlaybackFormat = sourceFormat
         applyMasterVolume()
         guard AppAudioSession.shared.canStartAudioEngine else {

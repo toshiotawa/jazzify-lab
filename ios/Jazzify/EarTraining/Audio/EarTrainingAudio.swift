@@ -1031,6 +1031,7 @@ final class EarTrainingAudio: NSObject {
         engine.attach(masterMixer)
         engine.attach(limiter)
 
+        _ = engine.outputNode
         engine.connect(phrasePlayer, to: phraseInputMixer, format: inputFormat)
         engine.connect(phraseInputMixer, to: phraseTimePitch, format: outputFormat)
         engine.connect(phraseTimePitch, to: phraseMixer, format: outputFormat)
@@ -1042,7 +1043,6 @@ final class EarTrainingAudio: NSObject {
         engine.connect(fireSeMixer, to: masterMixer, format: outputFormat)
         engine.connect(masterMixer, to: limiter, format: outputFormat)
         engine.connect(limiter, to: engine.mainMixerNode, format: outputFormat)
-        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         configurePeakLimiter(limiter)
 
         activeOutputFormat = outputFormat

@@ -512,12 +512,12 @@ final class DefenseBackingAudio: @unchecked Sendable {
         engine.attach(timePitch)
         engine.attach(playerA)
         engine.attach(playerB)
+        _ = engine.outputNode
         engine.connect(playerA, to: deckMixer, format: format)
         engine.connect(playerB, to: deckMixer, format: format)
         engine.connect(deckMixer, to: timePitch, format: format)
         engine.connect(timePitch, to: masterMixer, format: format)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: format)
-        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         applyTimePitchSettings()
         applyMasterMixerVolume()
         graphReady = true
