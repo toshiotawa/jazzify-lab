@@ -703,9 +703,18 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func engineConfigurationMatchesDesired() -> Bool {
         guard isRunning, let engine = audioEngine, engine.isRunning else { return false }
-        let currentRate = engine.inputNode.outputFormat(forBus: 0).sampleRate
-        guard currentRate > 0 else { return false }
-        return abs(activeTapSampleRate - currentRate) < 1.0
+        let outputFormat = engine.inputNode.outputFormat(forBus: 0)
+        let hardwareFormat = engine.inputNode.inputFormat(forBus: 0)
+        guard outputFormat.sampleRate > 0,
+              outputFormat.channelCount > 0,
+              hardwareFormat.sampleRate > 0,
+              hardwareFormat.channelCount > 0,
+              abs(outputFormat.sampleRate - hardwareFormat.sampleRate) < 1.0,
+              abs(activeTapSampleRate - outputFormat.sampleRate) < 1.0
+        else {
+            return false
+        }
+        return true
     }
 
     @MainActor

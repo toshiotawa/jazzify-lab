@@ -41,6 +41,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var appAudioSessionObserver: NSObjectProtocol?
     private var voicePolicyObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
+    private var reconfigureTask: Task<Void, Never>?
     /// バックグラウンド等で `engine.start()` をスキップしたときに立て、アクティブ復帰時に再開する。
     private var needsEngineResumeOnActive = false
     /// `stop` / `rebuildGraph` 中の同期 ConfigurationChange で旧グラフを再startしない。
@@ -49,8 +50,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
     private var voiceInputDucking = false
     private static let masterHeadroomGain: Float = 0.7
-    private static let sampleRateMismatchThreshold = 0.01
-
     private init() {
         registerLifecycleObservers()
     }
@@ -59,11 +58,11 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         guard stage.audioRegistrationMode == .sharedProgressionSeparateTracks else {
             throw DefenseSeparateTracksAudioError.invalidMode
         }
-        let playbackFormat = EarTrainingAudio.preferredOutputFormat()
+        let sampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
         let prepared = try await DefenseSeparateTracksBuffers.prepare(
             stage: stage,
             speedRatio: speedRatio,
-            sampleRate: playbackFormat.sampleRate
+            sampleRate: sampleRate
         )
         await MainActor.run {
             self.isStopping = true
@@ -248,22 +247,33 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
     private func handleEngineConfigurationChange() {
         guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
-        restartEngineIfNeeded()
+        startReconfigureTask()
     }
 
     private func handleSharedAudioSessionReconfigure() {
         guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
-        Task { @MainActor in
-            await self.reconfigureGraphAfterSessionChange()
+        startReconfigureTask()
+    }
+
+    private func startReconfigureTask() {
+        reconfigureTask?.cancel()
+        reconfigureTask = Task { @MainActor in
+            await self.reconfigureAfterHardwareOrSessionChange()
         }
     }
 
     @MainActor
-    private func reconfigureGraphAfterSessionChange() async {
+    private func reconfigureAfterHardwareOrSessionChange() async {
         guard !isStopping, !isMutatingGraph, let state = mixerState else { return }
-        let hardwareRate = EarTrainingAudio.preferredHardwareSampleRate()
+        let generation = sessionGeneration
+
+        if engine.isRunning {
+            engine.stop()
+        }
+        let hardwareRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
         let preparedRate = state.activeSet.grid.sampleRate
-        let rateMismatch = abs(hardwareRate - preparedRate) / preparedRate > Self.sampleRateMismatchThreshold
+        let rateMismatch = !AudioOutputFormatResolver.sampleRatesMatch(hardwareRate, preparedRate)
+
         if rateMismatch, let stage {
             let ratio = DefensePracticeSpeed.ratio(state.activeSet.speedPercent)
             if let reconverted = try? await DefenseSeparateTracksBuffers.reconvert(
@@ -272,61 +282,34 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
                 speedRatio: ratio,
                 newSampleRate: hardwareRate
             ) {
+                guard !Task.isCancelled,
+                      !isStopping,
+                      generation == sessionGeneration,
+                      mixerState === state else { return }
+
+                let oldCycleFrames = state.activeSet.grid.cycleFrames
+                let oldPhaseFrame = state.phaseFrame
+
                 state.activeSet = reconverted
+                state.phaseFrame = AudioOutputFormatResolver.remapPhaseFrame(
+                    phaseFrame: oldPhaseFrame,
+                    oldCycleFrames: oldCycleFrames,
+                    newCycleFrames: reconverted.grid.cycleFrames
+                )
+                state.pendingTempoSet = nil
+                state.tempoCrossfadePreviousSet = nil
+                state.tempoCrossfadeFramesRemaining = 0
+                state.playbackAnchorHostTime = 0
+                state.playbackAnchorAbsoluteSample = 0
             }
         }
+
+        guard !Task.isCancelled,
+              !isStopping,
+              generation == sessionGeneration,
+              mixerState === state else { return }
         let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
         rebuildGraph(sourceFormat: format)
-    }
-
-    @MainActor
-    private func reconvertAndReconnectIfNeeded() async {
-        guard !isStopping, !isMutatingGraph, let state = mixerState, let stage else { return }
-        let generation = sessionGeneration
-
-        let hardwareRate = EarTrainingAudio.preferredHardwareSampleRate()
-        let preparedRate = state.activeSet.grid.sampleRate
-        let rateMismatch = abs(hardwareRate - preparedRate) / preparedRate > Self.sampleRateMismatchThreshold
-
-        if rateMismatch {
-            let ratio = DefensePracticeSpeed.ratio(state.activeSet.speedPercent)
-            guard let reconverted = try? await DefenseSeparateTracksBuffers.reconvert(
-                preparedSet: state.activeSet,
-                stage: stage,
-                speedRatio: ratio,
-                newSampleRate: hardwareRate
-            ) else {
-                guard !isStopping, generation == sessionGeneration, mixerState === state else { return }
-                restartEngineIfNeeded()
-                return
-            }
-            guard !isStopping, generation == sessionGeneration, mixerState === state else { return }
-            guard reconverted.setId != state.activeSet.setId else {
-                restartEngineIfNeeded()
-                return
-            }
-
-            let audiblePhraseIndex = state.audiblePhraseIndex
-            let absoluteCycle = state.absoluteCycle
-            let phaseFrame = state.phaseFrame
-            let paused = state.paused
-
-            state.activeSet = reconverted
-            state.pendingTempoSet = nil
-            state.tempoCrossfadePreviousSet = nil
-            state.tempoCrossfadeFramesRemaining = 0
-            state.audiblePhraseIndex = audiblePhraseIndex
-            state.desiredPhraseIndex = audiblePhraseIndex
-            state.absoluteCycle = absoluteCycle
-            state.phaseFrame = min(phaseFrame, max(1, reconverted.grid.cycleFrames) - 1)
-            state.paused = paused
-
-            let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: reconverted.grid.sampleRate)
-            rebuildGraph(sourceFormat: format)
-            return
-        }
-
-        restartEngineIfNeeded()
     }
 
     private func rebuildGraph(sourceFormat: AVAudioFormat) {

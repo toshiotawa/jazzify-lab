@@ -32,8 +32,12 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private var scheduledSwitchAtHostSec: Double = -1
     private var scheduledPhraseIndex: Int?
     private var wakeWorkItem: DispatchWorkItem?
+    private var nativeBuffersByPhraseIndex: [Int: AVAudioPCMBuffer] = [:]
     private var buffersByPhraseIndex: [Int: AVAudioPCMBuffer] = [:]
     private var barFramesByPhraseIndex: [Int: [Int]] = [:]
+    private var deckFormat: AVAudioFormat?
+    private var buffersFormat: AVAudioFormat?
+    private var desiredPlaybackRate: Float = 1
     private var paused = false
     private var pausedOffsetSec: Double = 0
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
@@ -66,9 +70,16 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     func setPlaybackRate(_ rate: Float) {
         runOnMain { [weak self] in
             guard let self else { return }
-            self.timePitch.rate = max(0.1, rate)
-            self.timePitch.bypass = abs(rate - 1) < 0.0001
+            self.desiredPlaybackRate = max(0.1, rate)
+            self.applyTimePitchSettings()
         }
+    }
+
+    private func applyTimePitchSettings() {
+        let rate = desiredPlaybackRate
+        timePitch.rate = rate
+        timePitch.pitch = 0
+        timePitch.bypass = abs(rate - 1) < 0.0001
     }
 
     private func applyMasterVolume() {
@@ -89,7 +100,12 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             throw URLError(.badURL)
         }
 
-        let outputFormat = EarTrainingAudio.preferredOutputFormat()
+        let outputFormat = AudioOutputFormatResolver.stereoFormat(
+            sampleRate: AudioOutputFormatResolver.resolveSampleRate(
+                outputNodeSampleRate: 0,
+                sessionSampleRate: AVAudioSession.sharedInstance().sampleRate
+            )
+        )
         let prepared = try await decodePreparedPhrases(
             stage: stage,
             progressionBars: progressionBars,
@@ -97,6 +113,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         )
 
         await MainActor.run {
+            self.buffersFormat = outputFormat
             self.stage = stage
             self.playbackRatio = max(0.1, speedRatio)
             self.progressionBars = progressionBars
@@ -106,6 +123,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                 beatsPerBar: stage.beatsPerBar,
                 playbackRatio: self.playbackRatio
             )
+            self.nativeBuffersByPhraseIndex = prepared.nativeBuffers
             self.buffersByPhraseIndex = prepared.buffers
             self.barFramesByPhraseIndex = prepared.barFrames
         }
@@ -115,16 +133,25 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         stage: DefenseStageDefinition,
         progressionBars: Int,
         outputFormat: AVAudioFormat
-    ) async throws -> (buffers: [Int: AVAudioPCMBuffer], barFrames: [Int: [Int]]) {
+    ) async throws -> (
+        buffers: [Int: AVAudioPCMBuffer],
+        barFrames: [Int: [Int]],
+        nativeBuffers: [Int: AVAudioPCMBuffer]
+    ) {
         var buffers: [Int: AVAudioPCMBuffer] = [:]
         var barFrames: [Int: [Int]] = [:]
+        var nativeBuffers: [Int: AVAudioPCMBuffer] = [:]
 
         for index in stage.phrases.indices {
             let phrase = stage.phrases[index]
             guard let url = URL(string: phrase.audioUrl) else {
                 throw URLError(.badURL)
             }
-            let decoded = try await decodePCM(url: url, outputFormat: outputFormat)
+            let decodedNative = try await decodeNativePCM(url: url)
+            nativeBuffers[index] = decodedNative
+            guard let decoded = EarTrainingAudio.convertBuffer(decodedNative, to: outputFormat) else {
+                throw URLError(.cannotDecodeContentData)
+            }
             let sampleRate = decoded.format.sampleRate
             let expectedFrames = DefenseSharedProgressionTransport.expectedFrameCount(
                 progressionBars: progressionBars,
@@ -152,7 +179,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             )
         }
 
-        return (buffers, barFrames)
+        return (buffers, barFrames, nativeBuffers)
     }
 
     func start(initialPhraseIndex: Int) {
@@ -235,8 +262,11 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.stopPlayers(resetTransport: true)
             self.stage = nil
             self.needsEngineResumeOnActive = false
+            self.nativeBuffersByPhraseIndex.removeAll()
             self.buffersByPhraseIndex.removeAll()
             self.barFramesByPhraseIndex.removeAll()
+            self.deckFormat = nil
+            self.buffersFormat = nil
             if self.engine.isRunning {
                 self.engine.stop()
             }
@@ -310,12 +340,16 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         offsetSec: Double,
         startAtHostSec: Double? = nil
     ) {
+        ensureGraph()
+        if let format = deckFormat {
+            rebuildBuffersIfNeeded(for: format)
+        }
+
         guard let buffer = buffersByPhraseIndex[phraseIndex],
               let barFrames = barFramesByPhraseIndex[phraseIndex],
               barFrames.count > progressionBars
         else { return }
 
-        ensureGraph()
         cancelWake()
         scheduledPhraseIndex = nil
         scheduledSwitchAtHostSec = -1
@@ -347,11 +381,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                    startingFrame: startFrame,
                    frameCount: tailCount
                ) {
-                active.scheduleBuffer(tailBuffer, at: nil) { [weak self] in
-                    self?.runOnMain {
-                        self?.scheduleLoopHead(for: phraseIndex, player: active, at: nil)
-                    }
-                }
+                active.scheduleBuffer(tailBuffer, at: nil, options: [])
+                scheduleLoopHead(for: phraseIndex, player: active, at: nil)
             } else {
                 scheduleLoopHead(for: phraseIndex, player: active, at: nil)
             }
@@ -385,12 +416,16 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         phraseIndex: Int,
         plan: DefenseSharedProgressionSwitchPlan
     ) {
+        ensureGraph()
+        if let format = deckFormat {
+            rebuildBuffersIfNeeded(for: format)
+        }
+
         guard let buffer = buffersByPhraseIndex[phraseIndex],
               let barFrames = barFramesByPhraseIndex[phraseIndex],
               barFrames.count > progressionBars
         else { return }
 
-        ensureGraph()
         cancelWake()
 
         let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: plan.switchAt))
@@ -411,11 +446,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                    startingFrame: startFrame,
                    frameCount: tailCount
                ) {
-                incoming.scheduleBuffer(tailBuffer, at: when) { [weak self] in
-                    self?.runOnMain {
-                        self?.scheduleLoopHead(for: phraseIndex, player: incoming, at: nil)
-                    }
-                }
+                incoming.scheduleBuffer(tailBuffer, at: when, options: [])
+                scheduleLoopHead(for: phraseIndex, player: incoming, at: nil)
             } else {
                 scheduleLoopHead(for: phraseIndex, player: incoming, at: when)
             }
@@ -501,11 +533,19 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
     private func ensureGraph(forceRebuild: Bool = false) {
         registerLifecycleObserversIfNeeded()
-        let format = EarTrainingAudio.preferredOutputFormat()
-        if graphReady, !forceRebuild {
+        let resolved = AudioOutputFormatResolver.stereoFormat(engine: engine)
+        if graphReady, !forceRebuild, let deckFormat,
+           deckFormat.isEqual(resolved),
+           AudioOutputFormatResolver.sampleRatesMatch(deckFormat.sampleRate, resolved.sampleRate) {
             return
         }
-        if graphReady, forceRebuild {
+        let needsRebuild = !graphReady
+            || forceRebuild
+            || deckFormat == nil
+            || !AudioOutputFormatResolver.sampleRatesMatch(deckFormat?.sampleRate ?? 0, resolved.sampleRate)
+        guard needsRebuild else { return }
+
+        if graphReady {
             if engine.isRunning {
                 engine.stop()
             }
@@ -517,7 +557,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             engine.detach(playerB)
             graphReady = false
         }
-        guard !graphReady else { return }
+        let format = AudioOutputFormatResolver.stereoFormat(engine: engine)
+        deckFormat = format
         engine.attach(deckMixer)
         engine.attach(masterMixer)
         engine.attach(timePitch)
@@ -528,13 +569,44 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         engine.connect(deckMixer, to: timePitch, format: format)
         engine.connect(timePitch, to: masterMixer, format: format)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
-        timePitch.rate = 1
-        timePitch.pitch = 0
-        timePitch.bypass = true
+        applyTimePitchSettings()
         graphReady = true
     }
 
-    private func decodePCM(url: URL, outputFormat: AVAudioFormat) async throws -> AVAudioPCMBuffer {
+    private func rebuildBuffersIfNeeded(for format: AVAudioFormat) {
+        guard let stage, !nativeBuffersByPhraseIndex.isEmpty else { return }
+        if let buffersFormat,
+           buffersFormat.isEqual(format),
+           AudioOutputFormatResolver.sampleRatesMatch(buffersFormat.sampleRate, format.sampleRate),
+           !buffersByPhraseIndex.isEmpty {
+            return
+        }
+        var rebuiltBuffers: [Int: AVAudioPCMBuffer] = [:]
+        var rebuiltBarFrames: [Int: [Int]] = [:]
+        for (index, native) in nativeBuffersByPhraseIndex {
+            guard let converted = EarTrainingAudio.convertBuffer(native, to: format) else { continue }
+            let expectedFrames = DefenseSharedProgressionTransport.expectedFrameCount(
+                progressionBars: progressionBars,
+                bpm: stage.bpm,
+                beatsPerBar: stage.beatsPerBar,
+                sampleRate: format.sampleRate
+            )
+            guard let fitted = DefensePhraseBacking.fitPCMBuffer(
+                converted,
+                frameCount: AVAudioFrameCount(max(1, expectedFrames))
+            ) else { continue }
+            rebuiltBuffers[index] = fitted
+            rebuiltBarFrames[index] = DefenseSharedProgressionTransport.buildBarFrameTable(
+                progressionBars: progressionBars,
+                barFrameCount: Int(fitted.frameLength)
+            )
+        }
+        buffersByPhraseIndex = rebuiltBuffers
+        barFramesByPhraseIndex = rebuiltBarFrames
+        buffersFormat = format
+    }
+
+    private func decodeNativePCM(url: URL) async throws -> AVAudioPCMBuffer {
         let local = try await cache.localFileURL(for: url)
         return try await Task.detached(priority: .userInitiated) {
             let file = try AVAudioFile(forReading: local)
@@ -543,13 +615,10 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                 throw URLError(.cannotDecodeContentData)
             }
             try file.read(into: buffer)
-            if buffer.format.isEqual(outputFormat) {
-                return buffer
-            }
-            guard let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) else {
+            guard buffer.frameLength > 0 else {
                 throw URLError(.cannotDecodeContentData)
             }
-            return converted
+            return buffer
         }.value
     }
 
@@ -624,11 +693,16 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                 }
                 return
             }
-            let offset = max(0, Self.hostTimeSec() - self.transportStartHostSec)
+            let offset = self.transportStartHostSec > 0
+                ? max(0, Self.hostTimeSec() - self.presentationLatency - self.transportStartHostSec)
+                : 0
             let phrase = self.audiblePhraseIndex
             let wasPaused = self.paused
             let desired = self.desiredPhraseIndex
             self.ensureGraph(forceRebuild: true)
+            if let format = self.deckFormat {
+                self.rebuildBuffersIfNeeded(for: format)
+            }
             guard !wasPaused else { return }
             self.playActivePhraseImmediate(at: phrase, offsetSec: offset)
             if desired != phrase {
@@ -645,10 +719,15 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             needsEngineResumeOnActive = true
             return
         }
-        let offset = max(0, Self.hostTimeSec() - transportStartHostSec)
+        let offset = transportStartHostSec > 0
+            ? max(0, Self.hostTimeSec() - presentationLatency - transportStartHostSec)
+            : 0
         let phrase = audiblePhraseIndex
         let desired = desiredPhraseIndex
         ensureGraph(forceRebuild: true)
+        if let format = deckFormat {
+            rebuildBuffersIfNeeded(for: format)
+        }
         playActivePhraseImmediate(at: phrase, offsetSec: offset)
         if desired != phrase {
             desiredPhraseIndex = desired

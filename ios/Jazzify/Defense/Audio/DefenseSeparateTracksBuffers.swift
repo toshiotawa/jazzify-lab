@@ -2,8 +2,8 @@ import AVFoundation
 import Foundation
 
 enum DefenseSeparateTracksBuffers {
+    private static let cacheLock = NSLock()
     private static var nextSetId = 1
-    private static let sampleRateMismatchThreshold = 0.01
 
     private struct NativeSourceCacheKey: Hashable {
         let bgmUrl: String
@@ -35,13 +35,20 @@ enum DefenseSeparateTracksBuffers {
 
         let nativeBgm: NativePCM
         let nativeMelody: NativePCM
-        if let cached = nativeSourceCache[cacheKey] {
-            nativeBgm = cached.bgm
-            nativeMelody = cached.melody
+        cacheLock.lock()
+        let cachedEntry = nativeSourceCache[cacheKey]
+        cacheLock.unlock()
+        if let cachedEntry {
+            nativeBgm = cachedEntry.bgm
+            nativeMelody = cachedEntry.melody
         } else {
-            nativeBgm = try await readNativePCM(url: bgmUrl, cache: cache)
-            nativeMelody = try await readNativePCM(url: melodyUrl, cache: cache)
-            nativeSourceCache[cacheKey] = (nativeBgm, nativeMelody)
+            let loadedBgm = try await readNativePCM(url: bgmUrl, cache: cache)
+            let loadedMelody = try await readNativePCM(url: melodyUrl, cache: cache)
+            cacheLock.lock()
+            nativeSourceCache[cacheKey] = (loadedBgm, loadedMelody)
+            cacheLock.unlock()
+            nativeBgm = loadedBgm
+            nativeMelody = loadedMelody
         }
 
         return try await buildPreparedSet(
@@ -60,8 +67,7 @@ enum DefenseSeparateTracksBuffers {
         speedRatio: Double,
         newSampleRate: Double
     ) async throws -> DefenseSeparateTracksPreparedSet {
-        guard abs(newSampleRate - preparedSet.grid.sampleRate) / preparedSet.grid.sampleRate
-            > sampleRateMismatchThreshold else {
+        guard !AudioOutputFormatResolver.sampleRatesMatch(newSampleRate, preparedSet.grid.sampleRate) else {
             return preparedSet
         }
 
@@ -78,13 +84,20 @@ enum DefenseSeparateTracksBuffers {
 
         let nativeBgm: NativePCM
         let nativeMelody: NativePCM
-        if let cached = nativeSourceCache[cacheKey] {
-            nativeBgm = cached.bgm
-            nativeMelody = cached.melody
+        cacheLock.lock()
+        let cachedEntry = nativeSourceCache[cacheKey]
+        cacheLock.unlock()
+        if let cachedEntry {
+            nativeBgm = cachedEntry.bgm
+            nativeMelody = cachedEntry.melody
         } else {
-            nativeBgm = try await readNativePCM(url: bgmUrl, cache: cache)
-            nativeMelody = try await readNativePCM(url: melodyUrl, cache: cache)
-            nativeSourceCache[cacheKey] = (nativeBgm, nativeMelody)
+            let loadedBgm = try await readNativePCM(url: bgmUrl, cache: cache)
+            let loadedMelody = try await readNativePCM(url: melodyUrl, cache: cache)
+            cacheLock.lock()
+            nativeSourceCache[cacheKey] = (loadedBgm, loadedMelody)
+            cacheLock.unlock()
+            nativeBgm = loadedBgm
+            nativeMelody = loadedMelody
         }
 
         return try await buildPreparedSet(
@@ -194,8 +207,10 @@ enum DefenseSeparateTracksBuffers {
             targetFrames: grid.bgmFrames
         )
 
+        cacheLock.lock()
         let setId = nextSetId
         nextSetId += 1
+        cacheLock.unlock()
         return DefenseSeparateTracksPreparedSet(
             grid: grid,
             bgmLeft: bgmLeft,

@@ -42,9 +42,14 @@ enum DefenseTutorialAudio {
         }
     }
 
-    static func synthesize(concertMidis: [Int]) -> AVAudioPCMBuffer? {
+    static func synthesize(concertMidis: [Int], sampleRate: Double? = nil) -> AVAudioPCMBuffer? {
         guard concertMidis.count == 3 else { return nil }
-        let format = EarTrainingAudio.preferredOutputFormat()
+        let format: AVAudioFormat
+        if let sampleRate {
+            format = AudioOutputFormatResolver.stereoFormat(sampleRate: sampleRate)
+        } else {
+            format = EarTrainingAudio.preferredOutputFormat()
+        }
         let sampleRate = format.sampleRate
         let length = AVAudioFrameCount((DefenseTutorialConstants.loopSec * sampleRate).rounded(.up))
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: length) else {

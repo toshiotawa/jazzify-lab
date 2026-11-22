@@ -266,6 +266,9 @@ enum DefenseSeparateTracksMix {
         guard let request, request.generation == state.sessionGeneration else { return }
         if request.preparedSet.setId == state.activeSet.setId { return }
         if state.pendingTempoRevision >= request.tempoRevision { return }
+        let activeRate = state.activeSet.grid.sampleRate
+        let preparedRate = request.preparedSet.grid.sampleRate
+        guard AudioOutputFormatResolver.sampleRatesMatch(activeRate, preparedRate) else { return }
         state.pendingTempoSet = request.preparedSet
         state.pendingTempoRevision = request.tempoRevision
     }

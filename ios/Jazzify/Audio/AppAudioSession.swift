@@ -177,9 +177,10 @@ final class AppAudioSession {
         let optionsMatch = session.categoryOptions == targetOptions
         let modeMatches = session.mode == .default
         let bufferMatches = lastAppliedIOBufferDuration == targetBuffer
-        let sampleRateMatches = lastAppliedSampleRate != nil
-            && currentSampleRate > 0
-            && lastAppliedSampleRate == currentSampleRate
+        let sampleRateMatches: Bool = {
+            guard let lastApplied = lastAppliedSampleRate, currentSampleRate > 0 else { return false }
+            return AudioOutputFormatResolver.sampleRatesMatch(currentSampleRate, lastApplied)
+        }()
 
         if !force, categoryMatches, optionsMatch, modeMatches, bufferMatches, sampleRateMatches {
             return false
@@ -194,6 +195,8 @@ final class AppAudioSession {
         if recordingEnabled {
             // PESTO の 48 kHz と揃え、カテゴリ切替後のレート変動による BGM 再構築を抑える。
             try? session.setPreferredSampleRate(Self.recordingPreferredSampleRate)
+        } else {
+            try? session.setPreferredSampleRate(0)
         }
         // 44.1 kHz 固定は画面録画 (48 kHz) 時のリサンプル負荷でアンダーランを起こしやすい。
         // ハードウェア優先レート (多くの端末は 48 kHz) に追従させる。
@@ -208,11 +211,17 @@ final class AppAudioSession {
             lastAppliedSampleRate = updatedSampleRate
         }
 
+        let sampleRateChanged: Bool = {
+            guard updatedSampleRate > 0 else { return false }
+            guard let previous = previousSampleRate else { return true }
+            return !AudioOutputFormatResolver.sampleRatesMatch(previous, updatedSampleRate)
+        }()
+
         return !categoryMatches
             || !optionsMatch
             || !modeMatches
             || previousBuffer != targetBuffer
-            || (updatedSampleRate > 0 && previousSampleRate != updatedSampleRate)
+            || sampleRateChanged
     }
 
     // MARK: - Private
@@ -311,7 +320,14 @@ final class AppAudioSession {
             VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
             scheduleReconfigure()
         case .categoryChange, .routeConfigurationChange, .override:
-            if isWithinAutomaticReconfigureSuppression { return }
+            if AudioOutputFormatResolver.shouldSuppressRouteChange(
+                reason: reason,
+                withinSuppressionWindow: isWithinAutomaticReconfigureSuppression,
+                currentSampleRate: AVAudioSession.sharedInstance().sampleRate,
+                lastAppliedSampleRate: lastAppliedSampleRate
+            ) {
+                return
+            }
             scheduleReconfigure()
         default:
             break

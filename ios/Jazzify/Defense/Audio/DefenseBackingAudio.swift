@@ -21,10 +21,16 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var preparedStage: DefenseStageDefinition?
 
     private var activeIsA = true
+    private var sourceBufferA: AVAudioPCMBuffer?
+    private var sourceBufferB: AVAudioPCMBuffer?
     private var bufferA: AVAudioPCMBuffer?
     private var bufferB: AVAudioPCMBuffer?
+    private var isMutatingGraph = false
     private var graphReady = false
     private var deckFormat: AVAudioFormat?
+    private var synthesizedTutorialConcertMidis: [Int]?
+    private var desiredPlaybackRate: Float = 1
+    private var needsRescheduleOnResume = false
 
     private var transportStartHostSec: Double = 0
     private var pausedAtHostSec: Double?
@@ -39,6 +45,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private static let startLeadSec = 0.15
     private static let scheduleMinQuantumSec = 0.001
+    private static let reconfigureLeadSec = 0.05
 
     private var voiceInputDucking = false
     /// フレーズ音源 × マスターの実効値（0...1）。`EarTrainingAudio` と同じヘッドルームを掛ける。
@@ -85,8 +92,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
             incoming.reset()
             if self.activeIsA {
                 self.bufferB = nil
+                self.sourceBufferB = nil
             } else {
                 self.bufferA = nil
+                self.sourceBufferA = nil
             }
         }
         if Thread.isMainThread {
@@ -100,9 +109,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let apply = { [weak self] in
             guard let self else { return }
             let clamped = max(0.5, min(1.5, rate))
-            self.timePitch.rate = clamped
-            self.timePitch.pitch = 0
-            self.timePitch.bypass = abs(clamped - 1) < 0.0001
+            self.desiredPlaybackRate = clamped
+            self.applyTimePitchSettings()
         }
         if Thread.isMainThread {
             apply()
@@ -143,7 +151,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     func preload(urls: [URL]) async throws {
         for url in urls {
-            _ = try await decodePCM(url: url)
+            _ = try await ensureNativePCMInCache(url: url)
         }
     }
 
@@ -157,7 +165,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             guard let urlString = stage.audioUrl, let url = URL(string: urlString) else {
                 throw URLError(.badURL)
             }
-            let decoded = try await decodePCM(url: url)
+            let decoded = try await ensureNativePCMInCache(url: url)
             os_unfair_lock_lock(&lock)
             for index in indices where stage.phrases.indices.contains(index) {
                 phraseBuffersByIndex[index] = DefensePhraseBacking.preparePhraseBuffer(
@@ -176,19 +184,21 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     func start(firstUrl: URL, barCount: Int? = nil) async throws {
-        let buffer = try await decodePCM(url: firstUrl)
+        let native = try await ensureNativePCMInCache(url: firstUrl)
         try await MainActor.run {
+            self.synthesizedTutorialConcertMidis = nil
             self.stopPlayersAndResetPending()
             if let barCount, barCount > 0 {
                 self.currentBarCount = barCount
             }
-            try self.startEngine(with: buffer)
+            try self.startEngine(with: native)
         }
     }
 
     func startPhrase(at index: Int) async throws {
         let buffer = try await bufferForPhrase(at: index)
         try await MainActor.run {
+            self.synthesizedTutorialConcertMidis = nil
             self.stopPlayersAndResetPending()
             self.currentBarCount = self.barCount(for: index)
             self.audiblePhraseIndex = index
@@ -197,19 +207,24 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     func startSynthesizedTutorial(concertMidis: [Int]) async throws {
-        guard let buffer = DefenseTutorialAudio.synthesize(concertMidis: concertMidis) else {
-            throw URLError(.cannotDecodeContentData)
-        }
         try await MainActor.run {
             self.stop()
+            self.ensureGraph()
+            guard let buffer = DefenseTutorialAudio.synthesize(
+                concertMidis: concertMidis,
+                sampleRate: self.deckFormat?.sampleRate
+            ) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+            self.synthesizedTutorialConcertMidis = concertMidis
             self.currentBarCount = DefenseTutorialConstants.audioLoopBars
             try self.startEngine(with: buffer)
         }
     }
 
     func scheduleSwitch(nextUrl: URL) async throws -> Int64 {
-        let buffer = try await decodePCM(url: nextUrl)
-        return await scheduleSwitch(buffer: buffer)
+        let native = try await ensureNativePCMInCache(url: nextUrl)
+        return await scheduleSwitch(buffer: native)
     }
 
     func scheduleSwitchPhrase(at index: Int, forceNextBar: Bool = false) async throws -> Int64 {
@@ -275,13 +290,72 @@ final class DefenseBackingAudio: @unchecked Sendable {
             guard let self else { return }
             os_unfair_lock_lock(&self.lock)
             let pausedAt = self.pausedAtHostSec
-            self.pausedAtHostSec = nil
-            if let pausedAt, self.transportStartHostSec > 0 {
-                let delta = max(0, Self.hostTimeSec() - pausedAt)
-                self.transportStartHostSec += delta
-            }
+            let transportStart = self.transportStartHostSec
             os_unfair_lock_unlock(&self.lock)
             guard pausedAt != nil, self.graphReady else { return }
+
+            var elapsedSnapshot: Double = 0
+            if let pausedAt, transportStart > 0 {
+                elapsedSnapshot = max(0, pausedAt - transportStart)
+            }
+
+            os_unfair_lock_lock(&self.lock)
+            self.pausedAtHostSec = nil
+            os_unfair_lock_unlock(&self.lock)
+
+            if self.needsRescheduleOnResume {
+                self.needsRescheduleOnResume = false
+                guard AppAudioSession.shared.canStartAudioEngine else {
+                    self.needsEngineResumeOnActive = true
+                    return
+                }
+                guard let native = self.activeIsA ? self.sourceBufferA : self.sourceBufferB else { return }
+                let rebuilt = self.bufferMatchingDeckFormat(native)
+                if self.activeIsA {
+                    self.sourceBufferA = native
+                    self.bufferA = rebuilt
+                    self.sourceBufferB = nil
+                    self.bufferB = nil
+                } else {
+                    self.sourceBufferB = native
+                    self.bufferB = rebuilt
+                    self.sourceBufferA = nil
+                    self.bufferA = nil
+                }
+                let active = self.activeIsA ? self.playerA : self.playerB
+                active.stop()
+                active.reset()
+                self.engine.prepare()
+                do {
+                    try self.engine.start()
+                } catch {
+                    return
+                }
+                self.applyMasterMixerVolume()
+                self.applyTimePitchSettings()
+                let resumeAt = Self.hostTimeSec() + Self.reconfigureLeadSec
+                let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: resumeAt))
+                self.scheduleLoopFromOffset(
+                    buffer: rebuilt,
+                    player: active,
+                    at: nil,
+                    offsetSec: elapsedSnapshot,
+                    playbackRate: Double(self.desiredPlaybackRate)
+                )
+                active.play(at: when)
+                self.presentationLatency = active.outputPresentationLatency
+                os_unfair_lock_lock(&self.lock)
+                self.transportStartHostSec = resumeAt - elapsedSnapshot
+                os_unfair_lock_unlock(&self.lock)
+                return
+            }
+
+            if let pausedAt, transportStart > 0 {
+                os_unfair_lock_lock(&self.lock)
+                let delta = max(0, Self.hostTimeSec() - pausedAt)
+                self.transportStartHostSec += delta
+                os_unfair_lock_unlock(&self.lock)
+            }
             if !self.engine.isRunning {
                 try? self.engine.start()
             }
@@ -307,12 +381,16 @@ final class DefenseBackingAudio: @unchecked Sendable {
             }
             self.bufferA = nil
             self.bufferB = nil
+            self.sourceBufferA = nil
+            self.sourceBufferB = nil
             os_unfair_lock_lock(&self.lock)
             self.pcmDecodeGeneration &+= 1
             self.pcmDecodeTasks.removeAll()
             self.pcmCache.removeAll(keepingCapacity: false)
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
+            self.synthesizedTutorialConcertMidis = nil
+            self.needsRescheduleOnResume = false
             self.transportStartHostSec = 0
             self.pausedAtHostSec = nil
             self.playbackIntended = false
@@ -326,14 +404,28 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
-    private func ensureGraph() {
+    private func ensureGraph(forceRebuild: Bool = false) {
         registerLifecycleObserversIfNeeded()
-        let format = EarTrainingAudio.preferredOutputFormat()
-        if graphReady, let deckFormat, deckFormat.isEqual(format) {
+        let resolved = AudioOutputFormatResolver.stereoFormat(engine: engine)
+        if graphReady, !forceRebuild, let deckFormat,
+           deckFormat.isEqual(resolved),
+           AudioOutputFormatResolver.sampleRatesMatch(deckFormat.sampleRate, resolved.sampleRate) {
             return
+        }
+        let ownsMutationGuard = !isMutatingGraph
+        if ownsMutationGuard {
+            isMutatingGraph = true
+        }
+        defer {
+            if ownsMutationGuard {
+                isMutatingGraph = false
+            }
         }
         if graphReady {
             engine.stop()
+            if forceRebuild {
+                engine.reset()
+            }
             engine.disconnectNodeInput(engine.mainMixerNode)
             engine.detach(deckMixer)
             engine.detach(masterMixer)
@@ -343,6 +435,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             graphReady = false
         }
         guard !graphReady else { return }
+        let format = AudioOutputFormatResolver.stereoFormat(engine: engine)
         deckFormat = format
 
         engine.attach(deckMixer)
@@ -355,10 +448,24 @@ final class DefenseBackingAudio: @unchecked Sendable {
         engine.connect(deckMixer, to: timePitch, format: format)
         engine.connect(timePitch, to: masterMixer, format: format)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
-        timePitch.rate = 1
-        timePitch.pitch = 0
-        timePitch.bypass = true
+        applyTimePitchSettings()
         graphReady = true
+    }
+
+    private func applyTimePitchSettings() {
+        let rate = desiredPlaybackRate
+        timePitch.rate = rate
+        timePitch.pitch = 0
+        timePitch.bypass = abs(rate - 1) < 0.0001
+    }
+
+    private func bufferMatchingDeckFormat(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+        let target = deckFormat ?? AudioOutputFormatResolver.stereoFormat(engine: engine)
+        if buffer.format.isEqual(target),
+           AudioOutputFormatResolver.sampleRatesMatch(buffer.format.sampleRate, target.sampleRate) {
+            return buffer
+        }
+        return EarTrainingAudio.convertBuffer(buffer, to: target) ?? buffer
     }
 
     private func bufferForPhrase(at index: Int) async throws -> AVAudioPCMBuffer {
@@ -377,7 +484,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             guard let urlString = stage.audioUrl, let url = URL(string: urlString) else {
                 throw URLError(.badURL)
             }
-            let decoded = try await decodePCM(url: url)
+            let decoded = try await ensureNativePCMInCache(url: url)
             let sliced = DefensePhraseBacking.preparePhraseBuffer(
                 decoded: decoded,
                 stage: stage,
@@ -391,14 +498,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
         guard let url = URL(string: phrase.audioUrl) else {
             throw URLError(.badURL)
         }
-        let decoded = try await decodePCM(url: url)
+        let decoded = try await ensureNativePCMInCache(url: url)
         os_unfair_lock_lock(&lock)
         phraseBuffersByIndex[index] = decoded
         os_unfair_lock_unlock(&lock)
         return decoded
     }
 
-    private func decodePCM(url: URL) async throws -> AVAudioPCMBuffer {
+    private func ensureNativePCMInCache(url: URL) async throws -> AVAudioPCMBuffer {
         os_unfair_lock_lock(&lock)
         if let cached = pcmCache[url] {
             os_unfair_lock_unlock(&lock)
@@ -412,9 +519,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let task = Task<AVAudioPCMBuffer, Error> { [weak self] in
             guard let self else { throw CancellationError() }
             let local = try await self.cache.localFileURL(for: url)
-            let outputFormat = self.deckFormat ?? EarTrainingAudio.preferredOutputFormat()
             let resolved = try await Task.detached(priority: .userInitiated) {
-                try Self.readPCM(localURL: local, outputFormat: outputFormat)
+                try Self.readNativePCM(localURL: local)
             }.value
             os_unfair_lock_lock(&self.lock)
             if self.pcmDecodeGeneration == generation {
@@ -423,16 +529,16 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 }
                 self.pcmDecodeTasks[url] = nil
             }
-            let stored = self.pcmCache[url]
+            let native = self.pcmCache[url] ?? resolved
             os_unfair_lock_unlock(&self.lock)
-            return stored ?? resolved
+            return native
         }
         pcmDecodeTasks[url] = task
         os_unfair_lock_unlock(&lock)
         return try await task.value
     }
 
-    private static func readPCM(localURL: URL, outputFormat: AVAudioFormat) throws -> AVAudioPCMBuffer {
+    private static func readNativePCM(localURL: URL) throws -> AVAudioPCMBuffer {
         let file = try AVAudioFile(forReading: localURL)
         let format = file.processingFormat
         let frameCount = AVAudioFrameCount(file.length)
@@ -440,13 +546,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
             throw URLError(.cannotDecodeContentData)
         }
         try file.read(into: buffer)
-        if buffer.format.isEqual(outputFormat) {
-            return buffer
+        guard buffer.frameLength > 0 else {
+            throw URLError(.cannotDecodeContentData)
         }
-        if let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) {
-            return converted
-        }
-        throw URLError(.cannotDecodeContentData)
+        return buffer
     }
 
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {
@@ -455,9 +558,12 @@ final class DefenseBackingAudio: @unchecked Sendable {
         cancelOutgoingStopWork()
         switchScheduleToken &+= 1
         activeIsA = true
-        bufferA = buffer
+        let outputBuffer = bufferMatchingDeckFormat(buffer)
+        sourceBufferA = buffer
+        sourceBufferB = nil
+        bufferA = outputBuffer
         bufferB = nil
-        playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
+        playerA.scheduleBuffer(outputBuffer, at: nil, options: [.loops])
         applyMasterMixerVolume()
         if !engine.isRunning {
             guard AppAudioSession.shared.canStartAudioEngine else {
@@ -510,12 +616,15 @@ final class DefenseBackingAudio: @unchecked Sendable {
             )
         }
         var switchAt = plan.switchAt
+        let outputBuffer = bufferMatchingDeckFormat(buffer)
         let incoming = activeIsA ? playerB : playerA
         let outgoing = activeIsA ? playerA : playerB
         if activeIsA {
-            bufferB = buffer
+            sourceBufferB = buffer
+            bufferB = outputBuffer
         } else {
-            bufferA = buffer
+            sourceBufferA = buffer
+            bufferA = outputBuffer
         }
         incoming.stop()
         incoming.reset()
@@ -527,7 +636,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             let rate = max(0.1, Double(timePitch.rate))
             let overshootSec = max(0, switchAt - plan.cutAt)
             scheduleLoopFromOffset(
-                buffer: buffer,
+                buffer: outputBuffer,
                 player: incoming,
                 at: nil,
                 offsetSec: overshootSec,
@@ -535,7 +644,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             )
         } else {
             playbackWhen = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
-            incoming.scheduleBuffer(buffer, at: nil, options: [.loops])
+            incoming.scheduleBuffer(outputBuffer, at: nil, options: [.loops])
         }
         incoming.play(at: playbackWhen)
         scheduleOutgoingStop(
@@ -566,8 +675,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
             outgoing.reset()
             if self.activeIsA {
                 self.bufferA = nil
+                self.sourceBufferA = nil
             } else {
                 self.bufferB = nil
+                self.sourceBufferB = nil
             }
             self.activeIsA.toggle()
             if let phraseIndex {
@@ -610,12 +721,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
                startingFrame: safeStart,
                frameCount: tailCount
            ) {
-            player.scheduleBuffer(tailBuffer, at: when) { [weak self, weak player] in
-                guard let self, let player else { return }
-                self.runOnMain {
-                    player.scheduleBuffer(buffer, at: nil, options: [.loops])
-                }
-            }
+            player.scheduleBuffer(tailBuffer, at: when, options: [])
+            player.scheduleBuffer(buffer, at: nil, options: [.loops])
         } else {
             player.scheduleBuffer(buffer, at: when, options: [.loops])
         }
@@ -664,6 +771,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
         playerB.reset()
         bufferA = nil
         bufferB = nil
+        sourceBufferA = nil
+        sourceBufferB = nil
     }
 
     func beatInLoop() -> Double? {
@@ -722,6 +831,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     private func handleEngineConfigurationChange() {
+        guard !isMutatingGraph else { return }
         restartEngineIfNeeded()
     }
 
@@ -734,12 +844,70 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     private func restartEngineIfNeeded() {
-        guard graphReady else { return }
+        guard !isMutatingGraph else { return }
+        guard graphReady || playbackIntended else { return }
+        isMutatingGraph = true
+        defer { isMutatingGraph = false }
+
+        os_unfair_lock_lock(&lock)
+        let pausedAt = pausedAtHostSec
+        let transportStart = transportStartHostSec
+        os_unfair_lock_unlock(&lock)
+
+        let snapshotNow = Self.hostTimeSec()
+        let elapsedSnapshot: Double
+        if let pausedAt, transportStart > 0 {
+            elapsedSnapshot = max(0, pausedAt - transportStart)
+        } else if transportStart > 0 {
+            elapsedSnapshot = max(0, snapshotNow - presentationLatency - transportStart)
+        } else {
+            elapsedSnapshot = 0
+        }
+
         let shouldResume = playbackIntended
-        let activeBuffer = activeIsA ? bufferA : bufferB
+        cancelOutgoingStopWork()
+
         if engine.isRunning {
             engine.stop()
         }
+        ensureGraph(forceRebuild: true)
+
+        let rebuiltOutput: AVAudioPCMBuffer?
+        let rebuiltSource: AVAudioPCMBuffer?
+        if let midis = synthesizedTutorialConcertMidis,
+           let synthesized = DefenseTutorialAudio.synthesize(
+               concertMidis: midis,
+               sampleRate: deckFormat?.sampleRate
+           ) {
+            rebuiltSource = synthesized
+            rebuiltOutput = synthesized
+        } else if let nativeSource = activeIsA ? sourceBufferA : sourceBufferB {
+            rebuiltSource = nativeSource
+            rebuiltOutput = bufferMatchingDeckFormat(nativeSource)
+        } else {
+            rebuiltSource = nil
+            rebuiltOutput = nil
+        }
+
+        if let rebuiltOutput {
+            if activeIsA {
+                bufferA = rebuiltOutput
+                sourceBufferA = rebuiltSource
+                bufferB = nil
+                sourceBufferB = nil
+            } else {
+                bufferB = rebuiltOutput
+                sourceBufferB = rebuiltSource
+                bufferA = nil
+                sourceBufferA = nil
+            }
+        }
+
+        if pausedAt != nil {
+            needsRescheduleOnResume = true
+            return
+        }
+
         guard AppAudioSession.shared.canStartAudioEngine else {
             if shouldResume {
                 needsEngineResumeOnActive = true
@@ -747,26 +915,44 @@ final class DefenseBackingAudio: @unchecked Sendable {
             return
         }
         needsEngineResumeOnActive = false
-        ensureGraph()
+        needsRescheduleOnResume = false
+
+        guard shouldResume, let buffer = activeIsA ? bufferA : bufferB else { return }
+
         engine.prepare()
         do {
             try engine.start()
         } catch {
-            if shouldResume, AppAudioSession.isCannotStartPlayingError(error) {
+            if AppAudioSession.isCannotStartPlayingError(error) {
                 needsEngineResumeOnActive = true
             }
             return
         }
         applyMasterMixerVolume()
-        guard shouldResume, let buffer = activeBuffer else { return }
+        applyTimePitchSettings()
+
         let active = activeIsA ? playerA : playerB
         let inactive = activeIsA ? playerB : playerA
         inactive.stop()
         inactive.reset()
         active.stop()
         active.reset()
-        active.scheduleBuffer(buffer, at: nil, options: [.loops])
-        active.play()
+
+        let resumeAt = Self.hostTimeSec() + Self.reconfigureLeadSec
+        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: resumeAt))
+        let targetElapsed = elapsedSnapshot + max(0, resumeAt - snapshotNow)
+        scheduleLoopFromOffset(
+            buffer: buffer,
+            player: active,
+            at: nil,
+            offsetSec: targetElapsed,
+            playbackRate: Double(desiredPlaybackRate)
+        )
+        active.play(at: when)
+        presentationLatency = active.outputPresentationLatency
+        os_unfair_lock_lock(&lock)
+        transportStartHostSec = resumeAt - targetElapsed
+        os_unfair_lock_unlock(&lock)
     }
 
     private func applyMasterMixerVolume() {
