@@ -113,8 +113,11 @@ final class EarTrainingAudioCaptureTests: XCTestCase {
 
     func testRemapPhaseFrameBoundaries() {
         XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: -5, oldCycleFrames: 100, newCycleFrames: 200), 0)
-        XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: 999, oldCycleFrames: 100, newCycleFrames: 200), 199)
+        XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: 99, oldCycleFrames: 100, newCycleFrames: 200), 198)
+        XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: 999, oldCycleFrames: 100, newCycleFrames: 200), 198)
+        XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: 199, oldCycleFrames: 200, newCycleFrames: 100), 99)
         XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: 10, oldCycleFrames: 0, newCycleFrames: 200), 0)
+        XCTAssertEqual(AudioOutputFormatResolver.remapPhaseFrame(phaseFrame: 10, oldCycleFrames: 100, newCycleFrames: 0), 0)
     }
 
     func testShouldSuppressRouteChangeWhenSampleRateChangesInWindow() {
