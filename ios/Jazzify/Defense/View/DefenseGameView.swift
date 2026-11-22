@@ -122,13 +122,9 @@ struct DefenseGameView: View {
                 ))
             }
         }
-        .onChange(of: session.judgeState.correctNoteIndices) { _ in
-            guard isTutorialSession else { return }
-            let totalSteps = DefenseTutorialConstants.writtenPitchClasses.count
-            if session.judgeState.correctNoteIndices.count >= totalSteps
-                || session.judgeState.targetStepIndex >= totalSteps {
-                onTutorialPhraseSucceeded?()
-            }
+        .onChange(of: session.judgeState.completionCount) { count in
+            guard isTutorialSession, count > 0 else { return }
+            onTutorialPhraseSucceeded?()
         }
         .sheet(isPresented: $isSettingsOpen, onDismiss: {
             session.setSharedProgressionPaused(false)

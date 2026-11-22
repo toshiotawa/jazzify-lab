@@ -190,4 +190,33 @@ final class BuildDefenseTutorialPhraseTests: XCTestCase {
         XCTAssertFalse(DefenseTutorialState.shouldSaveCompletionOnExit(saved))
         XCTAssertTrue(DefenseTutorialState.hasCleared(saved))
     }
+
+    func testTutorialThreeNotesIncrementCompletionCountWhileResettingCorrectIndices() {
+        let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "piano")
+        let built = BuildDefenseTutorialPhrase.build(settings: settings)
+        var state = DefensePhraseJudge.createInitialState(phrases: built.stage.phrases)
+        let pitchClasses = built.concertMidis.map { (($0 % 12) + 12) % 12 }
+
+        for (index, pc) in pitchClasses.enumerated() {
+            let eval = DefensePhraseJudge.evaluateNoteOn(
+                state: state,
+                stageRequiredCompletionCount: built.stage.requiredCompletionCount,
+                pitchClass: pc,
+                sequential: false,
+                attackTrigger: built.stage.attackTrigger,
+                autoAdvance: false,
+                playStyle: built.stage.playStyle,
+                playRootOnChordChange: built.stage.playRootOnChordChange
+            )
+            state = eval.nextState
+            if index < pitchClasses.count - 1 {
+                XCTAssertEqual(state.completionCount, 0)
+                XCTAssertFalse(eval.phraseCompleted)
+            } else {
+                XCTAssertEqual(state.completionCount, 1)
+                XCTAssertTrue(eval.phraseCompleted)
+                XCTAssertTrue(state.correctNoteIndices.isEmpty)
+            }
+        }
+    }
 }
