@@ -51,6 +51,8 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     @ObservedObject var player: Player
     let displayRange: PianoStagePitchRange
 
+    @State private var touchedMidis: Set<Int> = []
+
     private let keyboardHeight: CGFloat = 76
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
@@ -83,6 +85,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
             .background(Color.black.opacity(0.55))
         }
         .frame(height: keyboardHeight)
+        .defersSystemGestures(on: .all)
     }
 
     @ViewBuilder
@@ -99,38 +102,58 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
             HStack(spacing: 0) {
                 ForEach(whites, id: \.self) { midi in
                     EarTrainingPianoKeyButton(
-                        midi: midi,
                         label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                         isBlack: false,
                         isMidiHeld: visibleHeldKeys.contains(midi),
+                        isTouchHeld: touchedMidis.contains(midi),
                         voicingHintIntensity: player.voicingHintIntensitiesByMidi?[midi],
                         voicingHint: player.voicingHintsByMidi[midi],
                         width: whiteKeyWidth,
-                        height: keyboardHeight,
-                        onPress: { player.handleNoteOn(midi: $0, velocity: PianoVelocityCurve.screenTapVelocity, playAudio: true) },
-                        onRelease: { player.handleNoteOff(midi: $0, playAudio: true) }
+                        height: keyboardHeight
                     )
                     .id(midi)
                 }
             }
             .frame(width: totalWidth, height: keyboardHeight)
+            .allowsHitTesting(false)
 
             ForEach(keyboardLayout.blackMidiNotes, id: \.self) { midi in
                 let x = blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth, keyboardLayout: keyboardLayout)
                 EarTrainingPianoKeyButton(
-                    midi: midi,
                     label: "",
                     isBlack: true,
                     isMidiHeld: visibleHeldKeys.contains(midi),
+                    isTouchHeld: touchedMidis.contains(midi),
                     voicingHintIntensity: player.voicingHintIntensitiesByMidi?[midi],
                     voicingHint: player.voicingHintsByMidi[midi],
                     width: blackKeyWidth,
-                    height: blackKeyHeight,
-                    onPress: { player.handleNoteOn(midi: $0, velocity: PianoVelocityCurve.screenTapVelocity, playAudio: true) },
-                    onRelease: { player.handleNoteOff(midi: $0, playAudio: true) }
+                    height: blackKeyHeight
                 )
                 .offset(x: x - blackKeyWidth / 2, y: 0)
+                .allowsHitTesting(false)
             }
+
+            PianoKeyboardTouchOverlay(
+                displayRange: displayRange,
+                keyboardHeight: keyboardHeight,
+                isInteractionEnabled: true,
+                blackKeyWidthRatio: blackKeyWidthRatio,
+                blackKeyHeightRatio: blackKeyHeightRatio,
+                onPress: { midi in
+                    player.handleNoteOn(
+                        midi: midi,
+                        velocity: PianoVelocityCurve.screenTapVelocity,
+                        playAudio: true
+                    )
+                },
+                onRelease: { midi in
+                    player.handleNoteOff(midi: midi, playAudio: true)
+                },
+                onTouchedMidisChange: { next in
+                    touchedMidis = next
+                }
+            )
+            .frame(width: totalWidth, height: keyboardHeight)
         }
         .frame(width: totalWidth, height: keyboardHeight)
     }
@@ -158,18 +181,14 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
 }
 
 private struct EarTrainingPianoKeyButton: View {
-    let midi: Int
     let label: String
     let isBlack: Bool
     let isMidiHeld: Bool
+    let isTouchHeld: Bool
     let voicingHintIntensity: VoicingHintIntensity?
     let voicingHint: VoicingHintState?
     let width: CGFloat
     let height: CGFloat
-    let onPress: (Int) -> Void
-    let onRelease: (Int) -> Void
-
-    @State private var isPressing: Bool = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -188,22 +207,6 @@ private struct EarTrainingPianoKeyButton: View {
             }
         }
         .frame(width: width, height: height)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressing {
-                        isPressing = true
-                        onPress(midi)
-                    }
-                }
-                .onEnded { _ in
-                    if isPressing {
-                        isPressing = false
-                        onRelease(midi)
-                    }
-                }
-        )
     }
 
     private var fillColor: Color {
@@ -236,7 +239,7 @@ private struct EarTrainingPianoKeyButton: View {
 
     @ViewBuilder
     private var activeKeyOverlay: some View {
-        if isPressing || isMidiHeld {
+        if isTouchHeld || isMidiHeld {
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                 .fill(
                     PianoKeyboardTheme.activeKey.opacity(

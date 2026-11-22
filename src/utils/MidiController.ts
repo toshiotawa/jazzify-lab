@@ -61,6 +61,7 @@ const detectUserInteraction = (): Promise<void> => {
     const cleanupListeners = () => {
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('pointerdown', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
     };
 
@@ -68,6 +69,7 @@ const detectUserInteraction = (): Promise<void> => {
 
     document.addEventListener('click', handleUserInteraction);
     document.addEventListener('touchstart', handleUserInteraction);
+    document.addEventListener('pointerdown', handleUserInteraction);
     document.addEventListener('keydown', handleUserInteraction);
   });
 };

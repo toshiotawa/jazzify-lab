@@ -321,6 +321,7 @@ private struct EarTrainingPrecisionGameContent: View {
                         pianoHeight: layout.pianoHeight,
                         fallLeadSec: EarTrainingPrecisionLandscapeLayout.fallLeadSec
                     )
+                    .defersSystemGestures(on: .all)
 
                     if !controller.showLobbyControls && !controller.activeLyricText.isEmpty {
                         VStack {

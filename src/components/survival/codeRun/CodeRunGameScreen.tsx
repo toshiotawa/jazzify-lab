@@ -553,7 +553,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       },
       (note: number) => stopNote(note),
     );
-    renderer.setTouchActionMode('pan-x');
+    renderer.setTouchActionMode('none');
   }, [pianoSize.height, settings.noteNameStyle, settings.simpleDisplayMode]);
 
   useEffect(() => {

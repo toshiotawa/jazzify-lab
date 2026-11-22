@@ -12,6 +12,7 @@ import {
 import { computePrecisionVanishEffectCenter } from '@/utils/earTrainingPrecisionVanishEffect';
 import { pianoKeyboardTheme } from '@/theme/pianoKeyboardTheme';
 import { cn } from '@/utils/cn';
+import { PianoKeyHoldCounter } from '@/utils/pianoKeyHoldCounter';
 import { mapMidiToVisibleKeyboard } from '@/utils/webKeyboardDisplayRange';
 
 export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
@@ -143,8 +144,8 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   private vanishedIds = new Set<string>();
   private onKeyPress: ((midi: number) => void) | null = null;
   private onKeyRelease: ((midi: number) => void) | null = null;
-  private pointerMidi: number | null = null;
-  private capturedPointerId: number | null = null;
+  private readonly pointerToMidi = new Map<number, number>();
+  private readonly keyHoldCounter = new PianoKeyHoldCounter();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -153,12 +154,20 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       throw new Error('Canvas 2D context unavailable');
     }
     this.ctx = ctx;
-    canvas.addEventListener('pointerdown', this.handlePointerDown);
+    const pointerOpts: AddEventListenerOptions = { passive: false };
+    canvas.addEventListener('pointerdown', this.handlePointerDown, pointerOpts);
+    canvas.addEventListener('pointermove', this.handlePointerMove, pointerOpts);
     canvas.addEventListener('pointerup', this.handlePointerUp);
     canvas.addEventListener('pointercancel', this.handlePointerUp);
-    canvas.addEventListener('pointerleave', this.handlePointerUp);
+    canvas.addEventListener('pointerleave', this.handlePointerLeave);
+    canvas.addEventListener('lostpointercapture', this.handlePointerUp);
+    canvas.addEventListener('contextmenu', this.preventContextMenu);
     window.addEventListener('blur', this.handleWindowBlur);
   }
+
+  private readonly preventContextMenu = (event: Event): void => {
+    event.preventDefault();
+  };
 
   setKeyboardRange(minMidi: number, maxMidi: number): void {
     this.minMidi = Math.min(minMidi, maxMidi);
@@ -245,65 +254,126 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   }
 
   destroy(): void {
-    this.releaseHeldPointerKey();
+    this.releaseAllPointerKeys();
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-    this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
+    const pointerOpts: AddEventListenerOptions = { passive: false };
+    this.canvas.removeEventListener('pointerdown', this.handlePointerDown, pointerOpts);
+    this.canvas.removeEventListener('pointermove', this.handlePointerMove, pointerOpts);
     this.canvas.removeEventListener('pointerup', this.handlePointerUp);
     this.canvas.removeEventListener('pointercancel', this.handlePointerUp);
-    this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
+    this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+    this.canvas.removeEventListener('lostpointercapture', this.handlePointerUp);
+    this.canvas.removeEventListener('contextmenu', this.preventContextMenu);
     window.removeEventListener('blur', this.handleWindowBlur);
   }
 
   private handlePointerDown = (event: PointerEvent): void => {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    if (y < this.hitLineY) {
-      return;
+    if (event.pointerType === 'touch') {
+      event.preventDefault();
     }
-    const midi = this.findKeyAt(x, y);
+    const midi = this.midiAtClient(event.clientX, event.clientY);
     if (midi === null) {
       return;
     }
     try {
       this.canvas.setPointerCapture(event.pointerId);
-      this.capturedPointerId = event.pointerId;
     } catch {
       // pointer capture unsupported
     }
-    this.pointerMidi = midi;
-    this.activeKeys.add(midi);
-    this.onKeyPress?.(midi);
-    this.requestRender();
+    this.pointerToMidi.set(event.pointerId, midi);
+    this.acquireKeyHold(midi);
   };
 
-  private handlePointerUp = (_event: PointerEvent): void => {
-    this.releaseHeldPointerKey();
-    if (this.capturedPointerId !== null) {
-      try {
-        this.canvas.releasePointerCapture(this.capturedPointerId);
-      } catch {
-        // ignore
-      }
-      this.capturedPointerId = null;
+  private handlePointerMove = (event: PointerEvent): void => {
+    if (event.pointerType === 'touch') {
+      event.preventDefault();
     }
+    if (!this.pointerToMidi.has(event.pointerId)) {
+      return;
+    }
+    const midi = this.midiAtClient(event.clientX, event.clientY);
+    const previous = this.pointerToMidi.get(event.pointerId);
+    if (midi === null) {
+      this.releasePointerKey(event.pointerId, false);
+      return;
+    }
+    if (previous === midi) {
+      return;
+    }
+    if (previous !== undefined) {
+      this.releaseKeyHold(previous);
+    }
+    this.pointerToMidi.set(event.pointerId, midi);
+    this.acquireKeyHold(midi);
+  };
+
+  private handlePointerUp = (event: PointerEvent): void => {
+    this.releasePointerKey(event.pointerId, true);
+  };
+
+  private handlePointerLeave = (event: PointerEvent): void => {
+    if (this.canvas.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+    this.releasePointerKey(event.pointerId, false);
   };
 
   private handleWindowBlur = (): void => {
-    this.releaseHeldPointerKey();
+    this.releaseAllPointerKeys();
   };
 
-  private releaseHeldPointerKey(): void {
-    if (this.pointerMidi === null) {
+  private midiAtClient(clientX: number, clientY: number): number | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (y < this.hitLineY) {
+      return null;
+    }
+    return this.findKeyAt(x, y);
+  }
+
+  private acquireKeyHold(midi: number): void {
+    if (this.keyHoldCounter.press(midi)) {
+      this.activeKeys.add(midi);
+      this.onKeyPress?.(midi);
+      this.requestRender();
+    }
+  }
+
+  private releaseKeyHold(midi: number): void {
+    if (this.keyHoldCounter.release(midi)) {
+      this.activeKeys.delete(midi);
+      this.onKeyRelease?.(midi);
+      this.requestRender();
+    }
+  }
+
+  private releasePointerKey(pointerId: number, releaseCapture: boolean): void {
+    const midi = this.pointerToMidi.get(pointerId);
+    if (midi === undefined) {
       return;
     }
-    const midi = this.pointerMidi;
-    this.pointerMidi = null;
-    this.onKeyRelease?.(midi);
-    this.activeKeys.delete(midi);
+    this.pointerToMidi.delete(pointerId);
+    this.releaseKeyHold(midi);
+    if (releaseCapture) {
+      try {
+        this.canvas.releasePointerCapture(pointerId);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private releaseAllPointerKeys(): void {
+    for (const pointerId of [...this.pointerToMidi.keys()]) {
+      this.releasePointerKey(pointerId, true);
+    }
+    this.pointerToMidi.clear();
+    this.keyHoldCounter.clear();
+    this.activeKeys.clear();
     this.requestRender();
   }
 

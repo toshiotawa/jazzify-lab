@@ -84,7 +84,7 @@ final class PrecisionNotesCanvasUIView: UIView {
     private var noteSpeedPxPerSec: CGFloat = 1
     private var minMidi = 60
     private var maxMidi = 83
-    private var activeTouchMidi: Int?
+    private var touchTracker = PianoKeyboardTouchTracker()
     private var guideMidis: Set<Int> = []
 
     private var staticLayerImage: UIImage?
@@ -142,7 +142,7 @@ final class PrecisionNotesCanvasUIView: UIView {
         self.fallLeadSec = fallLeadSec
         super.init(frame: .zero)
         backgroundColor = PrecisionNoteColors.background
-        isMultipleTouchEnabled = false
+        isMultipleTouchEnabled = true
         displayLink = CADisplayLink(target: self, selector: #selector(tick))
         displayLink?.add(to: .main, forMode: .common)
     }
@@ -159,7 +159,7 @@ final class PrecisionNotesCanvasUIView: UIView {
     func tearDown() {
         displayLink?.invalidate()
         displayLink = nil
-        releaseTouch()
+        releaseAllTouches()
     }
 
     override func layoutSubviews() {
@@ -734,24 +734,50 @@ final class PrecisionNotesCanvasUIView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let point = touches.first?.location(in: self), point.y >= hitLineY else { return }
-        guard let midi = findKey(at: point) else { return }
-        activeTouchMidi = midi
-        controller?.handleNoteOn(midi: midi, velocity: PianoVelocityCurve.screenTapVelocity)
+        for touch in touches {
+            let point = touch.location(in: self)
+            guard point.y >= hitLineY, let midi = findKey(at: point) else { continue }
+            applyTouchTransition(touchTracker.touchBegan(token: ObjectIdentifier(touch), midi: midi))
+        }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        for touch in touches {
+            let point = touch.location(in: self)
+            let token = ObjectIdentifier(touch)
+            if point.y >= hitLineY, let midi = findKey(at: point) {
+                applyTouchTransition(touchTracker.touchMoved(token: token, to: midi))
+            } else {
+                applyTouchTransition(touchTracker.touchEnded(token: token))
+            }
+        }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        releaseTouch()
+        for touch in touches {
+            applyTouchTransition(touchTracker.touchEnded(token: ObjectIdentifier(touch)))
+        }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        releaseTouch()
+        touchesEnded(touches, with: event)
     }
 
-    private func releaseTouch() {
-        guard let midi = activeTouchMidi else { return }
-        activeTouchMidi = nil
-        controller?.handleNoteOff(midi: midi)
+    private func releaseAllTouches() {
+        applyTouchTransition(touchTracker.releaseAll())
+    }
+
+    private func applyTouchTransition(_ transition: PianoKeyboardTouchTransition) {
+        guard let controller else { return }
+        for midi in transition.noteOns {
+            controller.handleNoteOn(midi: midi, velocity: PianoVelocityCurve.screenTapVelocity)
+        }
+        for midi in transition.noteOffs {
+            controller.handleNoteOff(midi: midi)
+        }
+        if !transition.noteOns.isEmpty || !transition.noteOffs.isEmpty {
+            setNeedsDisplay()
+        }
     }
 
     private func findKey(at point: CGPoint) -> Int? {

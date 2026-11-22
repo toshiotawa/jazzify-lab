@@ -43,6 +43,8 @@ struct SurvivalChordPadView: View, Equatable {
     /// When set, white keys never shrink below this width and the keyboard becomes horizontally scrollable.
     var minWhiteKeyWidth: CGFloat? = nil
 
+    @State private var touchedMidis: Set<Int> = []
+
     static func == (lhs: SurvivalChordPadView, rhs: SurvivalChordPadView) -> Bool {
         lhs.snapshot == rhs.snapshot
             && lhs.displayRange == rhs.displayRange
@@ -83,21 +85,15 @@ struct SurvivalChordPadView: View, Equatable {
                             hasSequentialNext: hasSequentialNext,
                             hintPendingOpacity: snapshot.hintPendingOpacity,
                             isMidiHeld: visibleHeldKeys.contains(midi),
+                            isTouchHeld: touchedMidis.contains(midi),
                             width: whiteKeyWidth,
-                            height: keyboardHeight,
-                            onPress: {
-                                guard snapshot.isEnabled else { return }
-                                onPress(midi)
-                            },
-                            onRelease: {
-                                guard snapshot.isEnabled else { return }
-                                onRelease(midi)
-                            }
+                            height: keyboardHeight
                         )
                         .id(midi)
                     }
                 }
                 .frame(width: contentWidth, height: keyboardHeight)
+                .allowsHitTesting(false)
 
                 ForEach(layout.blackMidiNotes, id: \.self) { midi in
                     let x = Self.blackKeyCenterX(
@@ -115,19 +111,32 @@ struct SurvivalChordPadView: View, Equatable {
                         hasSequentialNext: hasSequentialNext,
                         hintPendingOpacity: snapshot.hintPendingOpacity,
                         isMidiHeld: visibleHeldKeys.contains(midi),
+                        isTouchHeld: touchedMidis.contains(midi),
                         width: blackKeyWidth,
-                        height: blackKeyHeight,
-                        onPress: {
-                            guard snapshot.isEnabled else { return }
-                            onPress(midi)
-                        },
-                        onRelease: {
-                            guard snapshot.isEnabled else { return }
-                            onRelease(midi)
-                        }
+                        height: blackKeyHeight
                     )
                     .offset(x: x - blackKeyWidth / 2, y: 0)
+                    .allowsHitTesting(false)
                 }
+
+                PianoKeyboardTouchOverlay(
+                    displayRange: displayRange,
+                    keyboardHeight: keyboardHeight,
+                    isInteractionEnabled: snapshot.isEnabled,
+                    blackKeyWidthRatio: blackKeyWidthRatio,
+                    blackKeyHeightRatio: blackKeyHeightRatio,
+                    onPress: { midi in
+                        guard snapshot.isEnabled else { return }
+                        onPress(midi)
+                    },
+                    onRelease: { midi in
+                        onRelease(midi)
+                    },
+                    onTouchedMidisChange: { next in
+                        touchedMidis = next
+                    }
+                )
+                .frame(width: contentWidth, height: keyboardHeight)
             }
             .frame(width: contentWidth, height: keyboardHeight)
             .background(Color.black.opacity(0.55))
@@ -141,6 +150,7 @@ struct SurvivalChordPadView: View, Equatable {
             }
         }
         .frame(height: keyboardHeight)
+        .defersSystemGestures(on: .all)
     }
 
     private struct SurvivalChordPadKeyboardLayout {
@@ -198,12 +208,9 @@ private struct PianoKeyButton: View {
     let hasSequentialNext: Bool
     let hintPendingOpacity: CGFloat
     let isMidiHeld: Bool
+    let isTouchHeld: Bool
     let width: CGFloat
     let height: CGFloat
-    let onPress: () -> Void
-    let onRelease: () -> Void
-
-    @State private var isPressing: Bool = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -223,22 +230,6 @@ private struct PianoKeyButton: View {
             }
         }
         .frame(width: width, height: height)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressing {
-                        isPressing = true
-                        onPress()
-                    }
-                }
-                .onEnded { _ in
-                    if isPressing {
-                        isPressing = false
-                        onRelease()
-                    }
-                }
-        )
     }
 
     @ViewBuilder
@@ -279,7 +270,7 @@ private struct PianoKeyButton: View {
 
     @ViewBuilder
     private var activeKeyOverlay: some View {
-        if isPressing || isMidiHeld {
+        if isTouchHeld || isMidiHeld {
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                 .fill(
                     PianoKeyboardTheme.activeKey.opacity(

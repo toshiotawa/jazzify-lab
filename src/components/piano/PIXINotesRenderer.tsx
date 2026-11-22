@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import type { ActiveNote } from '@/types';
 import { pianoKeyboardTheme } from '@/theme/pianoKeyboardTheme';
 import { cn } from '@/utils/cn';
+import { PianoKeyHoldCounter } from '@/utils/pianoKeyHoldCounter';
 import { mapMidiToVisibleKeyboard } from '@/utils/webKeyboardDisplayRange';
 
 type NoteNameStyle = 'off' | 'abc' | 'solfege';
@@ -225,6 +226,7 @@ export class PIXINotesRendererInstance {
   private voicingHintPendingMediumKeys = new Set<number>();
   private voicingHintPendingSoftKeys = new Set<number>();
   private pointerStates = new Map<number, PointerState>();
+  private readonly keyHoldCounter = new PianoKeyHoldCounter();
   private onKeyPress?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
   private onKeyRelease?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
   private touchActionMode: 'pan-x' | 'none' = 'none';
@@ -535,6 +537,7 @@ export class PIXINotesRendererInstance {
     this.voicingHintPendingMediumKeys.clear();
     this.voicingHintPendingSoftKeys.clear();
     this.pointerStates.clear();
+    this.keyHoldCounter.clear();
     this.backgroundCanvas = null;
     this.noteRenderSnapshots.clear();
     this.noteRenderSnapshotIds.clear();
@@ -701,7 +704,8 @@ export class PIXINotesRendererInstance {
       this.canvas.addEventListener('pointermove', this.handlePointerMove, pointerOpts);
       this.canvas.addEventListener('pointerup', this.handlePointerUp);
       this.canvas.addEventListener('pointercancel', this.handlePointerUp);
-      this.canvas.addEventListener('pointerleave', this.handlePointerUp);
+      this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
+      this.canvas.addEventListener('lostpointercapture', this.handlePointerUp);
     } else {
       this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
       this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
@@ -711,7 +715,8 @@ export class PIXINotesRendererInstance {
       this.canvas.addEventListener('pointermove', this.handlePointerMove);
       this.canvas.addEventListener('pointerup', this.handlePointerUp);
       this.canvas.addEventListener('pointercancel', this.handlePointerUp);
-      this.canvas.addEventListener('pointerleave', this.handlePointerUp);
+      this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
+      this.canvas.addEventListener('lostpointercapture', this.handlePointerUp);
     }
     this.canvas.addEventListener('contextmenu', this.preventContextMenu);
     this.canvas.style.touchAction = this.touchActionMode === 'none' ? 'none' : 'pan-x pinch-zoom';
@@ -724,7 +729,8 @@ export class PIXINotesRendererInstance {
       this.canvas.removeEventListener('pointermove', this.handlePointerMove, pointerOpts);
       this.canvas.removeEventListener('pointerup', this.handlePointerUp);
       this.canvas.removeEventListener('pointercancel', this.handlePointerUp);
-      this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
+      this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+      this.canvas.removeEventListener('lostpointercapture', this.handlePointerUp);
     } else {
       this.canvas.removeEventListener('touchstart', this.handleTouchStart);
       this.canvas.removeEventListener('touchmove', this.handleTouchMove);
@@ -734,7 +740,8 @@ export class PIXINotesRendererInstance {
       this.canvas.removeEventListener('pointermove', this.handlePointerMove);
       this.canvas.removeEventListener('pointerup', this.handlePointerUp);
       this.canvas.removeEventListener('pointercancel', this.handlePointerUp);
-      this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
+      this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+      this.canvas.removeEventListener('lostpointercapture', this.handlePointerUp);
     }
     this.canvas.removeEventListener('contextmenu', this.preventContextMenu);
   }
@@ -750,6 +757,7 @@ export class PIXINotesRendererInstance {
         event.preventDefault();
       }
 
+      this.ensureBoundsFreshForInput();
       const pointerType = 'touch';
 
       for (let i = 0; i < event.changedTouches.length; i++) {
@@ -768,7 +776,7 @@ export class PIXINotesRendererInstance {
         this.pointerStates.set(touch.identifier, state);
         
         if (midi !== null) {
-          this.triggerKeyPress(midi, 'touch');
+          this.acquireKeyHold(midi, 'touch');
         }
       }
     };
@@ -789,10 +797,12 @@ export class PIXINotesRendererInstance {
         
         const deltaX = touch.clientX - state.startX;
         const deltaY = touch.clientY - state.startY;
-        
-        if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+
+        if (this.touchActionMode === 'pan-x'
+          && Math.abs(deltaX) > 10
+          && Math.abs(deltaX) > Math.abs(deltaY)) {
            if (state.midi !== null) {
-             this.triggerKeyRelease(state.midi, 'touch');
+             this.releaseKeyHold(state.midi, 'touch');
              state.midi = null;
            }
            state.isScrolling = true;
@@ -807,11 +817,11 @@ export class PIXINotesRendererInstance {
         }
         
         if (state.midi !== null) {
-          this.triggerKeyRelease(state.midi, 'touch');
+          this.releaseKeyHold(state.midi, 'touch');
         }
         
         state.midi = nextMidi;
-        this.triggerKeyPress(nextMidi, 'touch');
+        this.acquireKeyHold(nextMidi, 'touch');
       }
     };
 
@@ -824,7 +834,7 @@ export class PIXINotesRendererInstance {
         
         if (state) {
           if (state.midi !== null) {
-            this.triggerKeyRelease(state.midi, 'touch');
+            this.releaseKeyHold(state.midi, 'touch');
           }
           this.pointerStates.delete(touch.identifier);
         }
@@ -839,6 +849,7 @@ export class PIXINotesRendererInstance {
         event.preventDefault();
       }
 
+      this.ensureBoundsFreshForInput();
       const { x, y } = this.clientToLocal(event.clientX, event.clientY);
       const midi = this.getKeyAtPosition(x, y);
       const pointerType = event.pointerType || 'mouse';
@@ -858,7 +869,7 @@ export class PIXINotesRendererInstance {
         } catch {
           // ignore
         }
-        this.triggerKeyPress(midi, kind);
+        this.acquireKeyHold(midi, kind);
       }
     };
 
@@ -878,11 +889,13 @@ export class PIXINotesRendererInstance {
       const deltaX = event.clientX - state.startX;
       const deltaY = event.clientY - state.startY;
 
-      if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (this.touchActionMode === 'pan-x'
+        && Math.abs(deltaX) > 10
+        && Math.abs(deltaX) > Math.abs(deltaY)) {
         if (state.midi !== null) {
           const releaseKind: 'mouse' | 'touch' | 'pen' =
             state.pointerType === 'pen' ? 'pen' : state.pointerType === 'touch' ? 'touch' : 'mouse';
-          this.triggerKeyRelease(state.midi, releaseKind);
+          this.releaseKeyHold(state.midi, releaseKind);
           state.midi = null;
         }
         state.isScrolling = true;
@@ -897,40 +910,63 @@ export class PIXINotesRendererInstance {
       const kind: 'mouse' | 'touch' | 'pen' =
         state.pointerType === 'pen' ? 'pen' : state.pointerType === 'touch' ? 'touch' : 'mouse';
       if (state.midi !== null) {
-        this.triggerKeyRelease(state.midi, kind);
+        this.releaseKeyHold(state.midi, kind);
       }
       state.midi = nextMidi;
-      this.triggerKeyPress(nextMidi, kind);
+      this.acquireKeyHold(nextMidi, kind);
     };
 
     private handlePointerUp = (event: PointerEvent): void => {
       if (!this.usePointerUnified && event.pointerType === 'touch') return;
+      this.releasePointerState(event.pointerId, true);
+    };
 
-      const state = this.pointerStates.get(event.pointerId);
+    private handlePointerLeave = (event: PointerEvent): void => {
+      if (!this.usePointerUnified && event.pointerType === 'touch') return;
+      if (this.canvas.hasPointerCapture(event.pointerId)) {
+        return;
+      }
+      this.releasePointerState(event.pointerId, false);
+    };
+
+    private releasePointerState(pointerId: number, releaseCapture: boolean): void {
+      const state = this.pointerStates.get(pointerId);
       if (!state) {
         return;
       }
       const kind: 'mouse' | 'touch' | 'pen' =
         state.pointerType === 'touch' ? 'touch' : state.pointerType === 'pen' ? 'pen' : 'mouse';
       if (state.midi !== null) {
-        this.triggerKeyRelease(state.midi, kind);
+        this.releaseKeyHold(state.midi, kind);
       }
-      try {
-        this.canvas.releasePointerCapture(event.pointerId);
-      } catch {
-        // ignore
+      if (releaseCapture) {
+        try {
+          this.canvas.releasePointerCapture(pointerId);
+        } catch {
+          // ignore
+        }
       }
-      this.pointerStates.delete(event.pointerId);
-    };
+      this.pointerStates.delete(pointerId);
+    }
 
-  private triggerKeyPress(midi: number, pointerKind: 'mouse' | 'touch' | 'pen' = 'mouse'): void {
-    this.highlightKey(midi, true);
-    this.onKeyPress?.(midi, pointerKind);
+  private ensureBoundsFreshForInput(): void {
+    if (this.cachedBounds.width <= 1 || this.cachedBounds.height <= 1) {
+      this.refreshCachedBounds();
+    }
   }
 
-  private triggerKeyRelease(midi: number, pointerKind: 'mouse' | 'touch' | 'pen' = 'mouse'): void {
-    this.highlightKey(midi, false);
-    this.onKeyRelease?.(midi, pointerKind);
+  private acquireKeyHold(midi: number, pointerKind: 'mouse' | 'touch' | 'pen'): void {
+    if (this.keyHoldCounter.press(midi)) {
+      this.highlightKey(midi, true);
+      this.onKeyPress?.(midi, pointerKind);
+    }
+  }
+
+  private releaseKeyHold(midi: number, pointerKind: 'mouse' | 'touch' | 'pen'): void {
+    if (this.keyHoldCounter.release(midi)) {
+      this.highlightKey(midi, false);
+      this.onKeyRelease?.(midi, pointerKind);
+    }
   }
 
     private getKeyAtPosition(x: number, y: number): number | null {
@@ -1626,7 +1662,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className={cn('block touch-pan-x select-none', className)}
+      className={cn('block touch-none select-none', className)}
     />
   );
 };

@@ -19,6 +19,7 @@
 		061BF1013F28BE5D9AD9E337 /* auto_run_01.layout.json in Resources */ = {isa = PBXBuildFile; fileRef = A6D845C8D387564681D354C5 /* auto_run_01.layout.json */; };
 		06288CC746383360D07B8EB8 /* SurvivalTutorialDemoStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08E2993908D82F66E4ED990 /* SurvivalTutorialDemoStaffView.swift */; };
 		062AAAD06D6C42204E6C7BFD /* PianoKeyboardScrollChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */; };
+		E8F9192A3B4C5D6E7F8091B /* PianoKeyboardTouchOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F8091A2B3C4D5E6F70819 /* PianoKeyboardTouchOverlay.swift */; };
 		07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */; };
 		086F1877FAC04DE629DB8C5E /* SurvivalSessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AEC1B26646D55154111C37 /* SurvivalSessionState.swift */; };
 		0872C747D454A83D28691FC0 /* OnboardingCharacterDialogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C6C40AC8031AE43C504E98 /* OnboardingCharacterDialogView.swift */; };
@@ -413,6 +414,7 @@
 		F1A2B3C4D5E6470890ABCD002 /* DefenseProgressionTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6470890ABCD001 /* DefenseProgressionTimeline.swift */; };
 		F1A2B3C4D5E6470890ABCD004 /* DefenseProgressionTimelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6470890ABCD003 /* DefenseProgressionTimelineTests.swift */; };
 		CED8002B46A6AD0E39E70673 /* EarTrainingPianoLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEBCCA27468C34C18839FD9 /* EarTrainingPianoLayoutTests.swift */; };
+		F8091A2B3C4D5E6F708192B /* PianoKeyboardTouchTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8091A2B3C4D5E6F708192A /* PianoKeyboardTouchTrackerTests.swift */; };
 		CF63B5781915BDD22F269D5A /* DefensePhraseBacking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B6A4DCECC245A6C29EF2CC /* DefensePhraseBacking.swift */; };
 		D02C0FD07E52980806DC8E6A /* PianoKeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93536B485955BA0380712008 /* PianoKeyboardTheme.swift */; };
 		D092F0BC2C89F78117E0D86F /* SurvivalGameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6116747FF78CFB5A21A4FCB6 /* SurvivalGameEngine.swift */; };
@@ -744,6 +746,7 @@
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
 		7506A99CCCD98BCB75B3EC6C /* Bravura.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Bravura.otf; sourceTree = "<group>"; };
 		756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollChrome.swift; sourceTree = "<group>"; };
+		E7F8091A2B3C4D5E6F70819 /* PianoKeyboardTouchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardTouchOverlay.swift; sourceTree = "<group>"; };
 		76B83A7CEC8E09D2A75F237C /* TrainingProgression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProgression.swift; sourceTree = "<group>"; };
 		76EE28F54FC033C3D9E45A10 /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
 		78BDE813D4137FDAF7DD1DFA /* GameLaunchLoadingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLaunchLoadingOverlay.swift; sourceTree = "<group>"; };
@@ -1002,6 +1005,7 @@
 		FBC19B3A7D42EAB4C8CAC3C4 /* DefenseSceneLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSceneLayout.swift; sourceTree = "<group>"; };
 		FCDA84E85D21D8CB2E172F0C /* DiscordOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordOAuth.swift; sourceTree = "<group>"; };
 		FCEBCCA27468C34C18839FD9 /* EarTrainingPianoLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPianoLayoutTests.swift; sourceTree = "<group>"; };
+		F8091A2B3C4D5E6F708192A /* PianoKeyboardTouchTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardTouchTrackerTests.swift; sourceTree = "<group>"; };
 		FD4EC2AC7690D20AA02F1CBC /* EarTrainingLoadProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingLoadProgressTests.swift; sourceTree = "<group>"; };
 		FE10747A26971D22D12815D9 /* EarTrainingChordQuizBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordQuizBattleController.swift; sourceTree = "<group>"; };
 		FF7B7DAC4142B65E63ACE3D5 /* SurvivalTutorialV3LineRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LineRouterTests.swift; sourceTree = "<group>"; };
@@ -1449,6 +1453,7 @@
 				C4B5A69788695A4B3C2D1E0 /* EarTrainingOsmdCombatStatsTests.swift */,
 				594B3EB40C6473D30DFBFAD5 /* EarTrainingPhrasePairEngineTests.swift */,
 				FCEBCCA27468C34C18839FD9 /* EarTrainingPianoLayoutTests.swift */,
+				F8091A2B3C4D5E6F708192A /* PianoKeyboardTouchTrackerTests.swift */,
 				EA1E0DE29DDC053BE73E64FA /* EarTrainingPracticeSpeedTests.swift */,
 				FFE01F7B16617A21ADF4EBBA /* EarTrainingPrecisionAutoPlayTests.swift */,
 				E32F209DC72B5E1559FFD3C0 /* EarTrainingPrecisionLandscapeLayoutTests.swift */,
@@ -1951,6 +1956,7 @@
 				CE37C824003D0142D6E454EB /* PianoKeyboardDisplayModeSection.swift */,
 				AD142C35C72EBF8541B8AC85 /* PianoKeyboardDisplayPreferences.swift */,
 				756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */,
+				E7F8091A2B3C4D5E6F70819 /* PianoKeyboardTouchOverlay.swift */,
 				93536B485955BA0380712008 /* PianoKeyboardTheme.swift */,
 				9D3D03C266AE3CBAC45776DD /* PlayerLevelHub.swift */,
 				914262A8998D6CA200DFB8A9 /* PlayHubView.swift */,
@@ -2289,6 +2295,7 @@
 				D3C4B5A69788695A4B3C2D0 /* EarTrainingOsmdCombatStatsTests.swift in Sources */,
 				87B55FC5B28DB048A39B9FB4 /* EarTrainingPhrasePairEngineTests.swift in Sources */,
 				CED8002B46A6AD0E39E70673 /* EarTrainingPianoLayoutTests.swift in Sources */,
+				F8091A2B3C4D5E6F708192B /* PianoKeyboardTouchTrackerTests.swift in Sources */,
 				51619807C80F761286939273 /* EarTrainingPracticeSpeedTests.swift in Sources */,
 				75274698B6F37CD510933908 /* EarTrainingPrecisionAutoPlayTests.swift in Sources */,
 				E220F6F803FD194F8A1131EF /* EarTrainingPrecisionLandscapeLayoutTests.swift in Sources */,
@@ -2564,6 +2571,7 @@
 				436D589589F81CA4BB80CD92 /* PianoKeyboardDisplayModeSection.swift in Sources */,
 				D30A2257F8B82CA868491390 /* PianoKeyboardDisplayPreferences.swift in Sources */,
 				062AAAD06D6C42204E6C7BFD /* PianoKeyboardScrollChrome.swift in Sources */,
+				E8F9192A3B4C5D6E7F8091B /* PianoKeyboardTouchOverlay.swift in Sources */,
 				D02C0FD07E52980806DC8E6A /* PianoKeyboardTheme.swift in Sources */,
 				62096837D078DF7C4B69B082 /* PianoVelocityCurve.swift in Sources */,
 				7F2E8A1C9B4D6035E8A1C2F4 /* ExpectedPitchCandidates.swift in Sources */,
