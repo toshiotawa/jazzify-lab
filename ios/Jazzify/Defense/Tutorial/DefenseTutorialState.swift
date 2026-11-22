@@ -14,6 +14,7 @@ struct DefenseTutorialSessionState: Equatable, Sendable {
     var inputMethod: NoteInputMethod?
     var phraseSucceeded: Bool
     var completionSaved: Bool
+    var clearModalVisible: Bool
 }
 
 enum DefenseTutorialResetReason: Equatable, Sendable {
@@ -31,7 +32,8 @@ enum DefenseTutorialState {
             notation: notation,
             inputMethod: nil,
             phraseSucceeded: false,
-            completionSaved: false
+            completionSaved: false,
+            clearModalVisible: false
         )
     }
 
@@ -51,20 +53,24 @@ enum DefenseTutorialState {
         case .notationConfirm:
             var copy = state
             copy.screen = .notation
+            copy.clearModalVisible = false
             return copy
         case .inputChoice:
             var copy = state
             copy.screen = .notationConfirm
+            copy.clearModalVisible = false
             return copy
         case .inputSetup:
             var copy = state
             copy.screen = .inputChoice
             copy.inputMethod = nil
+            copy.clearModalVisible = false
             return copy
         case .play:
             var copy = state
             copy.screen = .inputSetup
             copy.phraseSucceeded = false
+            copy.clearModalVisible = false
             return copy
         case .notation:
             return nil
@@ -78,6 +84,7 @@ enum DefenseTutorialState {
         var copy = state
         copy.notation = notation
         copy.phraseSucceeded = false
+        copy.clearModalVisible = false
         return copy
     }
 
@@ -88,12 +95,23 @@ enum DefenseTutorialState {
         var copy = state
         copy.inputMethod = inputMethod
         copy.phraseSucceeded = false
+        copy.clearModalVisible = false
         return copy
     }
 
     static func markPhraseSucceeded(_ state: DefenseTutorialSessionState) -> DefenseTutorialSessionState {
+        if state.phraseSucceeded {
+            return state
+        }
         var copy = state
         copy.phraseSucceeded = true
+        copy.clearModalVisible = true
+        return copy
+    }
+
+    static func dismissClearModal(_ state: DefenseTutorialSessionState) -> DefenseTutorialSessionState {
+        var copy = state
+        copy.clearModalVisible = false
         return copy
     }
 
@@ -101,6 +119,10 @@ enum DefenseTutorialState {
         var copy = state
         copy.completionSaved = true
         return copy
+    }
+
+    static func hasCleared(_ state: DefenseTutorialSessionState) -> Bool {
+        state.phraseSucceeded || state.completionSaved
     }
 
     static func shouldResetPhraseProgress(reason: DefenseTutorialResetReason) -> Bool {
@@ -111,6 +133,6 @@ enum DefenseTutorialState {
     }
 
     static func shouldSaveCompletionOnExit(_ state: DefenseTutorialSessionState) -> Bool {
-        !state.completionSaved
+        state.phraseSucceeded && !state.completionSaved
     }
 }

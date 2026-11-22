@@ -330,9 +330,12 @@ const DefenseMapMain: React.FC = () => {
     }
   }, [maybeShowBlockCompleteModal, setSearchParams]);
 
-  const handleTutorialExit = useCallback(() => {
+  const handleTutorialExit = useCallback((cleared: boolean) => {
     void (async () => {
       backToMap();
+      if (!cleared) {
+        return;
+      }
       try {
         const { blocks, nodes, clears } = await loadGuidance();
         const clearedNodeIds = new Set(clears.map((clear) => clear.nodeId));

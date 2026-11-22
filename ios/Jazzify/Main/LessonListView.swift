@@ -1900,7 +1900,7 @@ struct LessonDetailView: View {
                     lessonId: launch.lessonId,
                     lessonSongId: launch.lessonSongId,
                     clearConditions: launch.clearConditions,
-                    onExit: { inputTutorialLaunch = nil }
+                    onExit: { _ in inputTutorialLaunch = nil }
                 )
                 .environmentObject(appState)
             }

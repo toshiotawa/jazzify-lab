@@ -14,6 +14,7 @@ export interface DefenseTutorialSessionState {
   readonly inputMethod: InputMethod | null;
   readonly phraseSucceeded: boolean;
   readonly completionSaved: boolean;
+  readonly clearModalVisible: boolean;
 }
 
 export type DefenseTutorialResetReason =
@@ -29,6 +30,7 @@ export const createDefenseTutorialSessionState = (
   inputMethod: null,
   phraseSucceeded: false,
   completionSaved: false,
+  clearModalVisible: false,
 });
 
 export const advanceDefenseTutorialScreen = (
@@ -44,13 +46,23 @@ export const retreatDefenseTutorialScreen = (
 ): DefenseTutorialSessionState | null => {
   switch (state.screen) {
     case 'notationConfirm':
-      return { ...state, screen: 'notation' };
+      return { ...state, screen: 'notation', clearModalVisible: false };
     case 'inputChoice':
-      return { ...state, screen: 'notationConfirm' };
+      return { ...state, screen: 'notationConfirm', clearModalVisible: false };
     case 'inputSetup':
-      return { ...state, screen: 'inputChoice', inputMethod: null };
+      return {
+        ...state,
+        screen: 'inputChoice',
+        inputMethod: null,
+        clearModalVisible: false,
+      };
     case 'play':
-      return { ...state, screen: 'inputSetup', phraseSucceeded: false };
+      return {
+        ...state,
+        screen: 'inputSetup',
+        phraseSucceeded: false,
+        clearModalVisible: false,
+      };
     default:
       return null;
   }
@@ -63,6 +75,7 @@ export const updateDefenseTutorialNotation = (
   ...state,
   notation,
   phraseSucceeded: false,
+  clearModalVisible: false,
 });
 
 export const selectDefenseTutorialInputMethod = (
@@ -72,13 +85,27 @@ export const selectDefenseTutorialInputMethod = (
   ...state,
   inputMethod,
   phraseSucceeded: false,
+  clearModalVisible: false,
 });
 
 export const markDefenseTutorialPhraseSucceeded = (
   state: DefenseTutorialSessionState,
+): DefenseTutorialSessionState => {
+  if (state.phraseSucceeded) {
+    return state;
+  }
+  return {
+    ...state,
+    phraseSucceeded: true,
+    clearModalVisible: true,
+  };
+};
+
+export const dismissDefenseTutorialClearModal = (
+  state: DefenseTutorialSessionState,
 ): DefenseTutorialSessionState => ({
   ...state,
-  phraseSucceeded: true,
+  clearModalVisible: false,
 });
 
 export const markDefenseTutorialCompletionSaved = (
@@ -88,6 +115,10 @@ export const markDefenseTutorialCompletionSaved = (
   completionSaved: true,
 });
 
+export const hasClearedDefenseTutorial = (
+  state: DefenseTutorialSessionState,
+): boolean => state.phraseSucceeded || state.completionSaved;
+
 export const shouldResetPhraseProgress = (reason: DefenseTutorialResetReason): boolean => (
   reason === 'notation'
   || reason === 'inputMethod'
@@ -96,4 +127,4 @@ export const shouldResetPhraseProgress = (reason: DefenseTutorialResetReason): b
 
 export const shouldSaveCompletionOnExit = (
   state: DefenseTutorialSessionState,
-): boolean => !state.completionSaved;
+): boolean => state.phraseSucceeded && !state.completionSaved;

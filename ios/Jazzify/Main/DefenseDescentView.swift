@@ -143,9 +143,9 @@ struct DefenseDescentView: View {
         .fullScreenCover(item: $tutorialLaunch) { launch in
             DefenseTutorialView(
                 playMapNodeId: launch.id,
-                onExit: {
+                onExit: { cleared in
                     tutorialLaunch = nil
-                    Task { await handleTutorialExit() }
+                    Task { await handleTutorialExit(cleared: cleared) }
                 }
             )
             .environmentObject(appState)
@@ -350,8 +350,9 @@ struct DefenseDescentView: View {
         }
     }
 
-    private func handleTutorialExit() async {
+    private func handleTutorialExit(cleared: Bool) async {
         await reloadMap()
+        guard cleared else { return }
         await refreshTodayStreakUpdated()
         let guidance = DefenseTrainingGuidanceResolver.resolveAfterTutorial(
             isPremium: appState.isPremium,

@@ -169,4 +169,25 @@ final class BuildDefenseTutorialPhraseTests: XCTestCase {
         XCTAssertNil(DefenseTutorialConstants.audioUrl(forConcertMidis: [60, 62, 65]))
         XCTAssertNil(DefenseTutorialConstants.audioUrl(forConcertMidis: [60, 62]))
     }
+
+    func testDefenseTutorialStateSaveRequiresPhraseSuccess() {
+        let notation = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "piano")
+        let initial = DefenseTutorialState.createSession(notation: notation)
+        XCTAssertFalse(DefenseTutorialState.shouldSaveCompletionOnExit(initial))
+        XCTAssertFalse(DefenseTutorialState.hasCleared(initial))
+
+        var play = DefenseTutorialState.advanceScreen(initial, to: .play)
+        play = DefenseTutorialState.markPhraseSucceeded(play)
+        XCTAssertTrue(play.clearModalVisible)
+        XCTAssertTrue(DefenseTutorialState.shouldSaveCompletionOnExit(play))
+        XCTAssertTrue(DefenseTutorialState.hasCleared(play))
+
+        let dismissed = DefenseTutorialState.dismissClearModal(play)
+        let again = DefenseTutorialState.markPhraseSucceeded(dismissed)
+        XCTAssertFalse(again.clearModalVisible)
+
+        let saved = DefenseTutorialState.markCompletionSaved(play)
+        XCTAssertFalse(DefenseTutorialState.shouldSaveCompletionOnExit(saved))
+        XCTAssertTrue(DefenseTutorialState.hasCleared(saved))
+    }
 }

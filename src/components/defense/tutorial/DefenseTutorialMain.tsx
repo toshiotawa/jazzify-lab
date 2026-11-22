@@ -72,10 +72,11 @@ const DefenseTutorialMain: React.FC = () => {
     };
   }, [params]);
 
-  const handleExit = (): void => {
+  const handleExit = (cleared: boolean): void => {
     if (lessonContext) {
       getWindow().location.hash = buildReturnFromAssignmentHash({
         lessonId: lessonContext.lessonId,
+        ...(cleared ? { justClearedLessonSongId: lessonContext.lessonSongId } : {}),
       });
       return;
     }
