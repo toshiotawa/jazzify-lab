@@ -97,6 +97,8 @@ final class SurvivalGameAudio {
     /// 遅延 `stopNote` の世代。`stop()` や新規ワンショットで進め、古いタイマーを無効化する。
     private var rootBassOneShotGeneration: UInt = 0
     private var isEngineStarted = false
+    private var lastAppliedSampleRate: Double?
+    private var isReconfiguringGraph = false
     /// `stop()` 中 / 停止後のフラグ。MIDI コールバック (背景スレッド) から
     /// `pianoNoteOnRealtime` が遅延で飛んできた際に停止済みエンジン操作を
     /// 完全に遮断するための二重ガード。
@@ -132,29 +134,42 @@ final class SurvivalGameAudio {
     private var sustainPedalSubscription: MIDISubscription?
 
     private init() {
-        engine.attach(sampler)
-        engine.attach(sfxMixer)
-        engine.attach(pianoMixer)
-        engine.attach(rootBassSampler)
-        engine.attach(keyboardGrandSampler)
-        engine.attach(rootBassEQ)
-        engine.attach(rootBassMixer)
-        engine.attach(limiter)
+        connectGraphNodes()
+        bgmPlayer.actionAtItemEnd = .advance
+        registerLifecycleObservers()
+    }
+
+    private func connectGraphNodes() {
+        let attachIfNeeded: (AVAudioNode) -> Void = { node in
+            if !self.engine.attachedNodes.contains(node) {
+                self.engine.attach(node)
+            }
+        }
+        attachIfNeeded(sampler)
+        attachIfNeeded(sfxMixer)
+        attachIfNeeded(pianoMixer)
+        attachIfNeeded(rootBassSampler)
+        attachIfNeeded(keyboardGrandSampler)
+        attachIfNeeded(rootBassEQ)
+        attachIfNeeded(rootBassMixer)
+        attachIfNeeded(limiter)
+
+        engine.disconnectNodeInput(sfxMixer)
+        engine.disconnectNodeInput(limiter)
+        engine.disconnectNodeInput(pianoMixer)
+        engine.disconnectNodeInput(rootBassEQ)
+        engine.disconnectNodeInput(rootBassMixer)
+
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: limiter, format: nil)
         engine.connect(limiter, to: engine.mainMixerNode, format: nil)
         engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
-        // 正解ルート音は EQ → 専用ミキサー経由。ピアノ音量に影響されない独立音量制御。
-        // Web 版 `_playRootNote` の master gain (0.3 + effectiveVolume * 0.7) 相当を
-        // `effectiveRootBassVolume` で再現する。鍵盤 / ルートは limiter をバイパスして低遅延。
         engine.connect(rootBassSampler, to: rootBassEQ, format: nil)
         engine.connect(rootBassEQ, to: rootBassMixer, format: nil)
         engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
         configureRootBassEQ()
         configurePeakLimiter(limiter)
-        bgmPlayer.actionAtItemEnd = .advance
-        registerLifecycleObservers()
     }
 
     // MARK: - Public API
@@ -758,11 +773,26 @@ final class SurvivalGameAudio {
         }
         isEngineStarted = false
 
+        reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: true)
         startEngineIfNeeded()
 
         if wasBgmPlaying || currentBgmUrl != nil {
             playBgm(forceRestart: true)
         }
+    }
+
+    private func reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: Bool = false) {
+        guard !isReconfiguringGraph else { return }
+        let currentRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+        let rateChanged: Bool = {
+            guard let lastApplied = lastAppliedSampleRate else { return true }
+            return !AudioOutputFormatResolver.sampleRatesMatch(currentRate, lastApplied)
+        }()
+        guard forceReconnect || rateChanged else { return }
+        isReconfiguringGraph = true
+        defer { isReconfiguringGraph = false }
+        engine.reset()
+        connectGraphNodes()
     }
 
     private func handleAudioSessionInterruption(_ notification: Notification) {
@@ -811,8 +841,16 @@ final class SurvivalGameAudio {
             return
         }
         DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isStopping else { return }
+            guard let self, !self.isStopping, !self.isReconfiguringGraph else { return }
+            if self.engine.isRunning {
+                self.engine.stop()
+            }
+            self.isEngineStarted = false
+            self.reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: true)
             self.startEngineIfNeeded()
+            if self.currentBgmUrl != nil, self.bgmPlayer.timeControlStatus != .playing {
+                self.playBgm()
+            }
         }
     }
 
@@ -829,6 +867,7 @@ final class SurvivalGameAudio {
             try engine.start()
             applyVolumesToNodes()
             isEngineStarted = true
+            lastAppliedSampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
             reloadSoundBanksAfterEngineStartIfNeeded()
         } catch {
             isEngineStarted = false
@@ -837,11 +876,13 @@ final class SurvivalGameAudio {
                 return
             }
             engine.reset()
+            connectGraphNodes()
             engine.prepare()
             try? engine.start()
             applyVolumesToNodes()
             if engine.isRunning {
                 isEngineStarted = true
+                lastAppliedSampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
                 reloadSoundBanksAfterEngineStartIfNeeded()
             }
         }

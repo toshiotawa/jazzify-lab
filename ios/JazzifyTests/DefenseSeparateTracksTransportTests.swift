@@ -249,4 +249,54 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
         XCTAssertTrue(left.allSatisfy { $0 == 0 })
         XCTAssertTrue(right.allSatisfy { $0 == 0 })
     }
+
+    func testRemapPhaseFramePreservesBeatInFormAcrossSampleRates() {
+        let bpm = 120.0
+        let beatsPerBar = 4
+        let phraseBars = DefenseSeparateTracksPhraseBars.two
+        let progressionBars = 12
+        let playbackRatio = 1.0
+
+        let grid441 = DefenseSeparateTracksTransport.computeGrid(
+            sampleRate: 44_100,
+            bpm: bpm,
+            beatsPerBar: beatsPerBar,
+            phraseBars: phraseBars,
+            progressionBars: progressionBars,
+            playbackRatio: playbackRatio
+        )
+        let grid48 = DefenseSeparateTracksTransport.computeGrid(
+            sampleRate: 48_000,
+            bpm: bpm,
+            beatsPerBar: beatsPerBar,
+            phraseBars: phraseBars,
+            progressionBars: progressionBars,
+            playbackRatio: playbackRatio
+        )
+
+        let phase441 = grid441.cycleFrames / 2
+        let mappedPhase = AudioOutputFormatResolver.remapPhaseFrame(
+            phaseFrame: phase441,
+            oldCycleFrames: grid441.cycleFrames,
+            newCycleFrames: grid48.cycleFrames
+        )
+
+        let beat441 = DefenseSeparateTracksTransport.beatInForm(
+            absoluteCycle: 3,
+            phaseFrame: phase441,
+            cycleFrames: grid441.cycleFrames,
+            phraseBars: phraseBars.rawValue,
+            beatsPerBar: beatsPerBar,
+            cyclesPerForm: grid441.cyclesPerForm
+        )
+        let beat48 = DefenseSeparateTracksTransport.beatInForm(
+            absoluteCycle: 3,
+            phaseFrame: mappedPhase,
+            cycleFrames: grid48.cycleFrames,
+            phraseBars: phraseBars.rawValue,
+            beatsPerBar: beatsPerBar,
+            cyclesPerForm: grid48.cyclesPerForm
+        )
+        XCTAssertEqual(beat441, beat48, accuracy: 0.01)
+    }
 }
