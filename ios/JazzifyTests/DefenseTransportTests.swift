@@ -78,4 +78,66 @@ final class DefenseTransportTests: XCTestCase {
         )
         XCTAssertEqual(switchAt, 176400)
     }
+
+    func testElapsedFromTransportMatchesListenPlayClock() {
+        let transportStart = 100.0
+        let latency = 0.02
+        let hostNow = 105.5
+        XCTAssertEqual(
+            DefenseTransport.elapsedFromTransport(
+                hostNow: hostNow,
+                presentationLatency: latency,
+                transportStart: transportStart
+            ),
+            5.48,
+            accuracy: 0.0001
+        )
+    }
+
+    func testTransportStartForResumePreservesElapsed() {
+        let pausedElapsed = 5.48
+        let resumeAt = 200.0
+        let transportStart = DefenseTransport.transportStartForResume(
+            resumeAt: resumeAt,
+            pausedElapsedSec: pausedElapsed
+        )
+        XCTAssertEqual(transportStart, 194.52, accuracy: 0.0001)
+        XCTAssertEqual(
+            DefenseTransport.elapsedFromTransport(
+                hostNow: resumeAt,
+                presentationLatency: 0,
+                transportStart: transportStart
+            ),
+            pausedElapsed,
+            accuracy: 0.0001
+        )
+    }
+
+    func testBarIndexStableAcrossPauseResume() {
+        let barSec = 2.0
+        let elapsed = 5.1
+        let barBefore = DefenseTransport.barIndex(elapsedFromTransportSec: elapsed, barSec: barSec)
+        let resumeAt = 300.0
+        let transport = DefenseTransport.transportStartForResume(resumeAt: resumeAt, pausedElapsedSec: elapsed)
+        let barAfter = DefenseTransport.barIndex(
+            elapsedFromTransportSec: DefenseTransport.elapsedFromTransport(
+                hostNow: resumeAt,
+                presentationLatency: 0,
+                transportStart: transport
+            ),
+            barSec: barSec
+        )
+        XCTAssertEqual(barBefore, barAfter)
+        XCTAssertEqual(barBefore, 2)
+    }
+
+    func testShiftHostDeadlineTracksPauseDelta() {
+        let deadline = 150.0
+        let pauseDelta = 8.25
+        XCTAssertEqual(
+            DefenseTransport.shiftHostDeadline(deadline: deadline, pauseDeltaHostSec: pauseDelta),
+            158.25,
+            accuracy: 0.0001
+        )
+    }
 }

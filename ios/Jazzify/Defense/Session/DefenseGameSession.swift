@@ -918,7 +918,13 @@ final class DefenseGameSession: ObservableObject {
         } else if isSharedProgressionStage {
             DefenseSharedProgressionAudio.shared.resumeProgression()
         } else {
-            DefenseBackingAudio.shared.resumePlayback()
+            let pauseDeltaHostSec = DefenseBackingAudio.shared.resumePlayback()
+            if pauseDeltaHostSec > 0, let waitHostSec = callResponseTransitionWaitUntilHostSec {
+                callResponseTransitionWaitUntilHostSec = DefenseTransport.shiftHostDeadline(
+                    deadline: waitHostSec,
+                    pauseDeltaHostSec: pauseDeltaHostSec
+                )
+            }
         }
     }
 

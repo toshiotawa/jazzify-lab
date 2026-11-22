@@ -126,4 +126,29 @@ enum DefenseTransport {
     static func deadlineSamples(sampleRate: Double, renderQuantum: Int = 512) -> Int64 {
         Int64((0.05 * sampleRate).rounded()) + Int64(renderQuantum * 2)
     }
+
+    /// Audible elapsed time since transport start (matches Listen/Play bar math).
+    static func elapsedFromTransport(
+        hostNow: Double,
+        presentationLatency: Double,
+        transportStart: Double
+    ) -> Double {
+        guard transportStart > 0 else { return 0 }
+        return max(0, hostNow - presentationLatency - transportStart)
+    }
+
+    /// Transport origin so audible elapsed stays `pausedElapsedSec` when playback resumes at `resumeAt`.
+    static func transportStartForResume(resumeAt: Double, pausedElapsedSec: Double) -> Double {
+        resumeAt - pausedElapsedSec
+    }
+
+    /// Shift absolute host-time deadlines by how long playback was paused.
+    static func shiftHostDeadline(deadline: Double, pauseDeltaHostSec: Double) -> Double {
+        deadline + pauseDeltaHostSec
+    }
+
+    static func barIndex(elapsedFromTransportSec: Double, barSec: Double) -> Int {
+        let safeBarSec = max(1e-6, barSec)
+        return Int(floor(max(0, elapsedFromTransportSec) / safeBarSec))
+    }
 }
