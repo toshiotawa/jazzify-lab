@@ -180,10 +180,10 @@ enum AudioRateDiagnostics {
     )
 
     private static func emit(_ message: String) {
-        logger.notice("\(message, privacy: .public)")
-        #if DEBUG
-        NSLog("[AudioRate] %@", message)
-        #endif
+        logger.error("[AudioRate] \(message, privacy: .public)")
+        if let data = "[AudioRate] \(message)\n".data(using: .utf8) {
+            try? FileHandle.standardError.write(contentsOf: data)
+        }
     }
 
     static func logSessionConfigure(
