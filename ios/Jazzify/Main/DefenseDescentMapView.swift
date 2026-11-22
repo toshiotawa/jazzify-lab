@@ -20,6 +20,7 @@ struct DefenseDescentMapView: View {
     @State private var scrollAnimated = false
     @State private var showMobileSheet = false
     @State private var pendingStageLaunch: (node: PlayMapNode, practiceMode: Bool)?
+    @State private var pendingEndlessRankingNodeId: UUID?
 
     private var isEnglishCopy: Bool { locale == .en }
 
@@ -122,7 +123,7 @@ struct DefenseDescentMapView: View {
             get: { !showSidePanelInline && showMobileSheet && selectedNode != nil },
             set: { if !$0 { showMobileSheet = false } }
         ), onDismiss: {
-            consumePendingStageLaunchIfNeeded()
+            consumePendingSheetActionsIfNeeded()
         }) {
             NavigationStack {
                 sidePanel
@@ -167,8 +168,8 @@ struct DefenseDescentMapView: View {
             bestStarRank: selectedNode.flatMap { clearByNodeId[$0.id]?.bestStarRank },
             bestEndlessEnemiesDefeated: selectedNode.flatMap { clearByNodeId[$0.id]?.bestEndlessEnemiesDefeated },
             onOpenEndlessRanking: {
-                guard let onOpenEndlessRanking, let selectedNode else { return nil as (() -> Void)? }
-                return { onOpenEndlessRanking(selectedNode.id) }
+                guard onOpenEndlessRanking != nil, let selectedNode else { return nil as (() -> Void)? }
+                return { handleOpenEndlessRanking(selectedNode.id) }
             }(),
             startLocked: startLocked,
             onStart: handleStart,
@@ -320,10 +321,26 @@ struct DefenseDescentMapView: View {
         closeMobileSheetIfNeeded()
     }
 
-    private func consumePendingStageLaunchIfNeeded() {
-        guard let pending = pendingStageLaunch else { return }
-        pendingStageLaunch = nil
-        onSelectNode(pending.node, pending.practiceMode)
+    private func handleOpenEndlessRanking(_ nodeId: UUID) {
+        guard let onOpenEndlessRanking else { return }
+        if showSidePanelInline || !showMobileSheet {
+            onOpenEndlessRanking(nodeId)
+            return
+        }
+        pendingEndlessRankingNodeId = nodeId
+        closeMobileSheetIfNeeded()
+    }
+
+    private func consumePendingSheetActionsIfNeeded() {
+        if let pending = pendingStageLaunch {
+            pendingStageLaunch = nil
+            onSelectNode(pending.node, pending.practiceMode)
+            return
+        }
+        if let nodeId = pendingEndlessRankingNodeId {
+            pendingEndlessRankingNodeId = nil
+            onOpenEndlessRanking?(nodeId)
+        }
     }
 
     private func consumePendingSelectNode(_ nodeId: UUID) {

@@ -26,10 +26,19 @@ export const DefenseEndlessRanking: React.FC<DefenseEndlessRankingProps> = ({
     () => stageNodes.filter((node) => node.nodeKind === 'stage' && node.defenseStageId),
     [stageNodes],
   );
-  const [selectedId, setSelectedId] = useState(initialNodeId);
+  const [selectedId, setSelectedId] = useState(() => (
+    stageOptions.some((node) => node.id === initialNodeId)
+      ? initialNodeId
+      : (stageOptions[0]?.id ?? '')
+  ));
   const [rows, setRows] = useState<Awaited<ReturnType<typeof fetchDefenseEndlessRanking>>>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (stageOptions.some((node) => node.id === selectedId)) return;
+    setSelectedId(stageOptions[0]?.id ?? '');
+  }, [selectedId, stageOptions]);
 
   useEffect(() => {
     if (!selectedId) return undefined;
@@ -97,6 +106,10 @@ export const DefenseEndlessRanking: React.FC<DefenseEndlessRankingProps> = ({
 
       {loading ? (
         <p className="text-slate-400">{isEnglish ? 'Loading…' : '読み込み中…'}</p>
+      ) : rows.length === 0 ? (
+        <p className="rounded-lg border border-slate-700/80 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-400">
+          {isEnglish ? 'No records yet.' : 'まだ記録がありません。'}
+        </p>
       ) : (
         <ol className="space-y-2">
           {rows.map((row) => (

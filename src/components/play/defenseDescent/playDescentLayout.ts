@@ -290,3 +290,15 @@ export const countClearedStageNodes = (
   });
   return count;
 };
+
+export const extractDescentStageNodes = (layout: PlayDescentLayout): PlayMapNode[] => {
+  const result: PlayMapNode[] = [];
+  layout.blocks.forEach((block) => {
+    block.nodes.forEach((entry) => {
+      if (entry.node.nodeKind === 'stage' && entry.node.defenseStageId) {
+        result.push(entry.node);
+      }
+    });
+  });
+  return result;
+};

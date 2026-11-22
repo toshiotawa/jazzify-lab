@@ -1,5 +1,6 @@
 import {
   buildPlayDescentLayout,
+  extractDescentStageNodes,
   findFrontierNodeId,
   getAccessiblePlayBlockIndex,
   getUnlockedPlayNodeIds,
@@ -168,5 +169,41 @@ describe('frontier helpers', () => {
     const cleared = new Set<string>(['a1']);
     expect(findFrontierNodeId(layout.blocks, cleared, true)).toBe('a2');
     expect(getAccessiblePlayBlockIndex(layout.blocks, cleared, true)).toBe(0);
+  });
+});
+
+describe('extractDescentStageNodes', () => {
+  it('returns only stage nodes from the requested descent tier in block and node order', () => {
+    const advBlock1: PlayMapBlock = {
+      id: 'adv-1',
+      mode: 'defense',
+      tier: 'advanced',
+      blockKey: 'intro',
+      label: 'はじめに',
+      labelEn: 'Intro',
+      sortOrder: 0,
+    };
+    const advBlock2: PlayMapBlock = {
+      id: 'adv-2',
+      mode: 'defense',
+      tier: 'advanced',
+      blockKey: 'floor-2',
+      label: '第2階層',
+      labelEn: 'Floor 2',
+      sortOrder: 1,
+    };
+    const nodes = [
+      makeNode('basic-stage', blockA.id, 0, 'stage'),
+      makeNode('adv-tut', advBlock1.id, -1, 'tutorial'),
+      makeNode('adv-1-2', advBlock1.id, 1, 'stage'),
+      makeNode('adv-1-1', advBlock1.id, 0, 'stage'),
+      makeNode('adv-2-1', advBlock2.id, 0, 'stage'),
+    ];
+    const layout = buildPlayDescentLayout([blockA, advBlock1, advBlock2], nodes, 'advanced');
+    expect(extractDescentStageNodes(layout).map((node) => node.id)).toEqual([
+      'adv-1-1',
+      'adv-1-2',
+      'adv-2-1',
+    ]);
   });
 });

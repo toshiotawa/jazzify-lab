@@ -41,6 +41,10 @@ struct DefenseDescentView: View {
         return PlayMapDefenseStageResolve.appSupportsCallResponsePlayMapStages(marketingVersion: marketingVersion)
     }
 
+    private var descentStageNodes: [PlayMapNode] {
+        DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: .advanced).stageNodes
+    }
+
     private struct StageLaunchSession: Identifiable {
         let id = UUID()
         let node: PlayMapNode
@@ -225,7 +229,7 @@ struct DefenseDescentView: View {
         .fullScreenCover(item: $endlessRankingLaunch) { launch in
             DefenseEndlessRankingView(
                 locale: locale,
-                stageNodes: nodes,
+                stageNodes: descentStageNodes,
                 initialNodeId: launch.id,
                 onBack: { endlessRankingLaunch = nil }
             )

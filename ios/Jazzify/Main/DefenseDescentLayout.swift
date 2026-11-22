@@ -91,6 +91,12 @@ struct DefenseDescentLayout: Sendable {
     func position(for nodeId: UUID) -> DefenseDescentNodePosition? {
         nodePositions[nodeId]
     }
+
+    var stageNodes: [PlayMapNode] {
+        blocks.flatMap(\.nodes)
+            .map(\.node)
+            .filter { $0.nodeKind == .stage && $0.defenseStageId != nil }
+    }
 }
 
 enum DefenseDescentLayoutBuilder {

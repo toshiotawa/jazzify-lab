@@ -18,10 +18,14 @@ struct DefenseEndlessRankingView: View {
         onBack: @escaping () -> Void
     ) {
         self.locale = locale
-        self.stageNodes = stageNodes.filter { $0.nodeKind == .stage && $0.defenseStageId != nil }
+        let filteredNodes = stageNodes.filter { $0.nodeKind == .stage && $0.defenseStageId != nil }
+        self.stageNodes = filteredNodes
         self.initialNodeId = initialNodeId
         self.onBack = onBack
-        _selectedNodeId = State(initialValue: initialNodeId)
+        let resolvedInitialId = filteredNodes.contains(where: { $0.id == initialNodeId })
+            ? initialNodeId
+            : (filteredNodes.first?.id ?? initialNodeId)
+        _selectedNodeId = State(initialValue: resolvedInitialId)
     }
 
     private var isEnglishCopy: Bool { locale == .en }
@@ -38,6 +42,11 @@ struct DefenseEndlessRankingView: View {
 
                 if loading {
                     ProgressView()
+                } else if rows.isEmpty {
+                    Text(isEnglishCopy ? "No records yet." : "まだ記録がありません。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(rows) { row in
                         HStack {

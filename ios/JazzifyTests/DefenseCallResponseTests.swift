@@ -502,6 +502,32 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertEqual(rimSprite?.blendMode, .add)
         XCTAssertNotEqual(bodySprite?.blendMode, .add)
     }
+
+    func testDescentLayoutStageNodesFiltersToAdvancedTierOnly() {
+        let basicBlockId = UUID()
+        let advBlock1Id = UUID()
+        let advBlock2Id = UUID()
+        let blocks: [PlayMapBlock] = [
+            PlayMapBlock(id: basicBlockId, mode: .defense, tier: .basic, blockKey: "intro", label: "基本", labelEn: "Basic", sortOrder: 0),
+            PlayMapBlock(id: advBlock2Id, mode: .defense, tier: .advanced, blockKey: "floor-2", label: "第2階層", labelEn: "Floor 2", sortOrder: 1),
+            PlayMapBlock(id: advBlock1Id, mode: .defense, tier: .advanced, blockKey: "intro", label: "はじめに", labelEn: "Intro", sortOrder: 0),
+        ]
+        let basicStageId = UUID()
+        let tutorialId = UUID()
+        let stage11Id = UUID()
+        let stage12Id = UUID()
+        let stage21Id = UUID()
+        let nodes: [PlayMapNode] = [
+            PlayMapNode(id: basicStageId, blockId: basicBlockId, sortOrder: 0, nodeKind: .stage, survivalMapCategory: nil, survivalStageNumber: nil, defenseStageId: "stage-basic", lessonId: nil, title: "フレーズ I", titleEn: "Phrase I", requiredRank: .C, difficultyLevel: 4, tutorialKey: nil),
+            PlayMapNode(id: tutorialId, blockId: advBlock1Id, sortOrder: -1, nodeKind: .tutorial, survivalMapCategory: nil, survivalStageNumber: nil, defenseStageId: nil, lessonId: nil, title: "はじめての設定", titleEn: "Setup", requiredRank: .C, difficultyLevel: nil, tutorialKey: "defense-input-setup-v1"),
+            PlayMapNode(id: stage12Id, blockId: advBlock1Id, sortOrder: 1, nodeKind: .stage, survivalMapCategory: nil, survivalStageNumber: nil, defenseStageId: "stage-1-2", lessonId: nil, title: "ステージ 1-2", titleEn: "Stage 1-2", requiredRank: .C, difficultyLevel: 2, tutorialKey: nil),
+            PlayMapNode(id: stage11Id, blockId: advBlock1Id, sortOrder: 0, nodeKind: .stage, survivalMapCategory: nil, survivalStageNumber: nil, defenseStageId: "stage-1-1", lessonId: nil, title: "ステージ 1-1", titleEn: "Stage 1-1", requiredRank: .C, difficultyLevel: 1, tutorialKey: nil),
+            PlayMapNode(id: stage21Id, blockId: advBlock2Id, sortOrder: 0, nodeKind: .stage, survivalMapCategory: nil, survivalStageNumber: nil, defenseStageId: "stage-2-1", lessonId: nil, title: "ステージ 2-1", titleEn: "Stage 2-1", requiredRank: .C, difficultyLevel: 5, tutorialKey: nil),
+        ]
+
+        let layout = DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: .advanced)
+        XCTAssertEqual(layout.stageNodes.map(\.id), [stage11Id, stage12Id, stage21Id])
+    }
 }
 
 private extension DefenseStageDefinition {

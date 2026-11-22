@@ -97,9 +97,15 @@ struct DefenseDescentSidePanel: View {
     private var selectedNodeCard: some View {
         if let selectedNode {
             VStack(alignment: .leading, spacing: 12) {
-                Text(selectedNode.localizedTitle(locale))
-                    .font(.headline.bold())
-                    .foregroundStyle(.white)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(selectedNode.localizedTitle(locale))
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 4)
+                    if selectedNode.nodeKind == .stage {
+                        starRankRow(earned: selectedNodeCleared ? (bestStarRank ?? 0) : 0)
+                    }
+                }
                 if let level = selectedNode.difficultyLevel {
                     Text("Lv.\(level)")
                         .font(.caption)
@@ -112,12 +118,6 @@ struct DefenseDescentSidePanel: View {
                         .foregroundStyle(.green)
                 }
                 if selectedNode.nodeKind == .stage {
-                    if selectedNodeCleared {
-                        Text(DefenseCallResponseTier.formatStarRank(bestStarRank))
-                            .font(.subheadline.bold())
-                            .tracking(2)
-                            .foregroundStyle(Color(hex: "fde68a"))
-                    }
                     VStack(alignment: .leading, spacing: 6) {
                         Text(isEnglishCopy ? "STAR RANK" : "クリアランク")
                             .font(.system(size: 10, weight: .bold))
@@ -273,6 +273,19 @@ struct DefenseDescentSidePanel: View {
         return isEnglishCopy
             ? "Your best: \(countText)"
             : "自己ベスト撃破数: \(countText)"
+    }
+
+    private func starRankRow(earned: Int) -> some View {
+        let clamped = max(0, min(3, earned))
+        return HStack(spacing: 2) {
+            ForEach(1...3, id: \.self) { index in
+                Text(index <= clamped ? "★" : "☆")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(index <= clamped ? Color(hex: "fde047") : Color.gray.opacity(0.45))
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isEnglishCopy ? "\(clamped) of 3 stars" : "星\(clamped)/3")
     }
 }
 

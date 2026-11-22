@@ -1,7 +1,6 @@
 import React from 'react';
 import { FaCheck, FaLock, FaPlay } from 'react-icons/fa';
 import { cn } from '@/utils/cn';
-import { formatDefenseStarRank } from '@/game/defense/defenseCallResponseCombat';
 import type { PlayMapNode } from '@/platform/supabasePlayMap';
 import type { PlayBlockLayout } from '@/components/play/defenseDescent/playDescentLayout';
 
@@ -83,9 +82,29 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
 
       {selectedNode ? (
         <div className="rounded-lg border border-amber-500/20 bg-black/35 p-4">
-          <h3 className="text-base font-bold text-white">
-            {isEnglishCopy ? selectedNode.titleEn : selectedNode.title}
-          </h3>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-base font-bold text-white">
+              {isEnglishCopy ? selectedNode.titleEn : selectedNode.title}
+            </h3>
+            {selectedNode.nodeKind === 'stage' && (() => {
+              const earnedStars = selectedNodeCleared && bestStarRank != null ? bestStarRank : 0;
+              return (
+                <span
+                  className="shrink-0 text-base leading-none tracking-widest"
+                  aria-label={isEnglishCopy ? `${earnedStars} of 3 stars` : `星${earnedStars}/3`}
+                >
+                  {[1, 2, 3].map((index) => (
+                    <span
+                      key={index}
+                      className={index <= earnedStars ? 'text-amber-300' : 'text-slate-500'}
+                    >
+                      {index <= earnedStars ? '★' : '☆'}
+                    </span>
+                  ))}
+                </span>
+              );
+            })()}
+          </div>
           {selectedNode.difficultyLevel != null && (
             <p className="mt-1 text-xs text-amber-200/80">
               Lv.{selectedNode.difficultyLevel}
@@ -111,11 +130,6 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
           {bestSurviveSec != null && (
             <p className="mt-1 text-xs text-emerald-300">
               {isEnglishCopy ? `Best survive: ${bestSurviveSec}s` : `ベスト生存: ${bestSurviveSec}秒`}
-            </p>
-          )}
-          {selectedNode.nodeKind === 'stage' && selectedNodeCleared && (
-            <p className="mt-2 text-sm tracking-widest text-amber-200">
-              {formatDefenseStarRank(bestStarRank ?? undefined)}
             </p>
           )}
           {selectedNode.nodeKind === 'stage' && (

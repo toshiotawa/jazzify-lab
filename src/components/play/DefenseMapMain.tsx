@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
+import {
+  buildPlayDescentLayout,
+  extractDescentStageNodes,
+} from '@/components/play/defenseDescent/playDescentLayout';
 import { DefenseEndlessRanking } from '@/components/defense/DefenseEndlessRanking';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
 import { DefenseNextStageLaunchModal } from '@/components/defense/DefenseNextStageLaunchModal';
@@ -354,9 +358,16 @@ const DefenseMapMain: React.FC = () => {
     }
   }, [activeNode, isEnglishCopy, loadGuidance, loaded, session?.practiceMode, toast]);
 
-  const openEndlessRanking = useCallback((nodeId: string) => {
-    void loadGuidance().then(({ nodes }) => {
-      setDefenseStageNodes(nodes);
+  const openEndlessRanking = useCallback((nodeId: string, stageNodes?: readonly PlayMapNode[]) => {
+    if (stageNodes && stageNodes.length > 0) {
+      setDefenseStageNodes([...stageNodes]);
+      setRankingNodeId(nodeId);
+      setScreen('endlessRanking');
+      return;
+    }
+    void loadGuidance().then(({ blocks, nodes }) => {
+      const descentLayout = buildPlayDescentLayout(blocks, nodes, 'advanced');
+      setDefenseStageNodes(extractDescentStageNodes(descentLayout));
       setRankingNodeId(nodeId);
       setScreen('endlessRanking');
     });

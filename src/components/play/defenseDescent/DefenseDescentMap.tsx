@@ -20,6 +20,7 @@ import {
   buildPlayDescentLayout,
   countClearedStageNodes,
   countStageNodes,
+  extractDescentStageNodes,
   findFrontierNodeId,
   getAccessiblePlayBlockIndex,
   getPlayNodePosition,
@@ -36,7 +37,7 @@ interface DefenseDescentMapProps {
   isPremiumMember: boolean;
   onSelectNode: (node: PlayMapNode, practiceMode: boolean) => void;
   onSelectQuestNode: (node: PlayMapNode) => void;
-  onOpenEndlessRanking: (nodeId: string) => void;
+  onOpenEndlessRanking: (nodeId: string, stageNodes: readonly PlayMapNode[]) => void;
   pendingSelectNodeId?: string | null;
   onPendingSelectNodeConsumed?: () => void;
 }
@@ -358,6 +359,17 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
     onSelectNode(selectedNode, false);
   }, [closeMobileDetail, onSelectNode, selectedNode, selectedNodeUnlocked]);
 
+  const descentStageNodes = useMemo(
+    () => extractDescentStageNodes(layout),
+    [layout],
+  );
+
+  const handleOpenEndlessRanking = useCallback(() => {
+    if (!selectedNode) return;
+    closeMobileDetail();
+    onOpenEndlessRanking(selectedNode.id, descentStageNodes);
+  }, [closeMobileDetail, descentStageNodes, onOpenEndlessRanking, selectedNode]);
+
   useEffect(() => {
     if (!pendingSelectNodeId || loading || !assetsReady || nodes.length === 0) return;
     const node = nodes.find((entry) => entry.id === pendingSelectNodeId);
@@ -543,9 +555,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
             bestSurviveSec={selectedClear?.bestSurviveSec ?? null}
             bestStarRank={selectedClear?.bestStarRank ?? null}
             bestEndlessEnemiesDefeated={selectedClear?.bestEndlessEnemiesDefeated ?? null}
-            onOpenEndlessRanking={() => {
-              if (selectedNode) onOpenEndlessRanking(selectedNode.id);
-            }}
+            onOpenEndlessRanking={handleOpenEndlessRanking}
             onStart={handleStart}
             onStartPractice={handleStartPractice}
             onStartPerformance={handleStartPerformance}
@@ -588,7 +598,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
                 bestSurviveSec={selectedClear?.bestSurviveSec ?? null}
                 bestStarRank={selectedClear?.bestStarRank ?? null}
                 bestEndlessEnemiesDefeated={selectedClear?.bestEndlessEnemiesDefeated ?? null}
-                onOpenEndlessRanking={() => onOpenEndlessRanking(selectedNode.id)}
+                onOpenEndlessRanking={handleOpenEndlessRanking}
                 onStart={handleStart}
                 onStartPractice={handleStartPractice}
                 onStartPerformance={handleStartPerformance}
