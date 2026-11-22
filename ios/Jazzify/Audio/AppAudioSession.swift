@@ -10,6 +10,8 @@ final class AppAudioSession {
 
     /// セッション設定が実際に変わったときに post する（オーディオグラフ再構成用）。
     static let didReconfigureNotification = Notification.Name("AppAudioSession.didReconfigure")
+    static let reconfigureSourceKey = "source"
+    static let captureEngineStartSource = "captureEngineStart"
 
     /// 通常プレイ時の IO バッファ（20ms）。鍵盤 / 正解ルート / デモプレイの低レイテンシを維持する。
     private static let normalIOBufferDuration: TimeInterval = 0.02
@@ -29,6 +31,7 @@ final class AppAudioSession {
     private var lastAppliedPreferredSampleRate: Double?
     private var pendingAlwaysNotify = false
     private var reconfigureWorkItem: DispatchWorkItem?
+    private var captureSyncWorkItem: DispatchWorkItem?
     private var recordingDisableWorkItem: DispatchWorkItem?
     private var captureObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
@@ -110,6 +113,8 @@ final class AppAudioSession {
         guard recordingEnabled else { return }
         recordingDisableWorkItem?.cancel()
         recordingDisableWorkItem = nil
+        captureSyncWorkItem?.cancel()
+        captureSyncWorkItem = nil
 
         if immediate {
             recordingEnabled = false
@@ -129,6 +134,40 @@ final class AppAudioSession {
     }
 
     var isRecordingEnabled: Bool { recordingEnabled }
+
+    /// `PitchInputEngine` がマイク入力エンジンを起動し終えた後に再生エンジン群のみ最終ハードウェアレートへ再同期する。
+    /// `AVAudioSession` の再設定は行わず、`PitchInputEngine` 自身はこの通知を無視して再起動ループを防ぐ。
+    func notifyPlaybackEnginesAfterCaptureStart() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.notifyPlaybackEnginesAfterCaptureStart() }
+            return
+        }
+        captureSyncWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.captureSyncWorkItem = nil
+            guard !self.isBackgrounded, self.recordingEnabled else { return }
+            let session = AVAudioSession.sharedInstance()
+            if session.sampleRate > 0 {
+                self.lastAppliedSampleRate = session.sampleRate
+            }
+            AudioRateDiagnostics.logSessionConfigure(
+                session: session,
+                isCaptured: UIScreen.main.isCaptured,
+                recordingEnabled: self.recordingEnabled,
+                preferredSampleRate: self.lastAppliedPreferredSampleRate ?? 0,
+                targetIOBufferDuration: self.lastAppliedIOBufferDuration ?? 0,
+                didChange: true
+            )
+            NotificationCenter.default.post(
+                name: Self.didReconfigureNotification,
+                object: self,
+                userInfo: [Self.reconfigureSourceKey: Self.captureEngineStartSource]
+            )
+        }
+        captureSyncWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.reconfigureDelay, execute: work)
+    }
 
     /// AppDelegate から 1 回だけ呼ぶ。初期構成 + ライフサイクル監視を開始する。
     func start() {
@@ -162,10 +201,12 @@ final class AppAudioSession {
 
         let session = AVAudioSession.sharedInstance()
         let isCaptured = UIScreen.main.isCaptured
+        let isBluetoothOutput = AudioRouteHelper.hasBluetoothOutput(session: session)
         let targetBuffer = preferredIOBufferDuration(isCaptured: isCaptured)
         let targetPreferredSampleRate = AudioOutputFormatResolver.preferredSessionSampleRate(
             recordingEnabled: recordingEnabled,
-            isScreenCaptured: isCaptured
+            isScreenCaptured: isCaptured,
+            isBluetoothOutput: isBluetoothOutput
         )
         let currentSampleRate = session.sampleRate
 
@@ -291,6 +332,8 @@ final class AppAudioSession {
             self.isBackgrounded = true
             self.reconfigureWorkItem?.cancel()
             self.reconfigureWorkItem = nil
+            self.captureSyncWorkItem?.cancel()
+            self.captureSyncWorkItem = nil
             self.pendingAlwaysNotify = false
         }
 

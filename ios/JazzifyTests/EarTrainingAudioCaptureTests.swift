@@ -161,6 +161,24 @@ final class EarTrainingAudioCaptureTests: XCTestCase {
             48_000,
             accuracy: 0.001
         )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(
+                recordingEnabled: false,
+                isScreenCaptured: true,
+                isBluetoothOutput: true
+            ),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(
+                recordingEnabled: true,
+                isScreenCaptured: false,
+                isBluetoothOutput: true
+            ),
+            48_000,
+            accuracy: 0.001
+        )
     }
 
     func testPostStartMismatchedRateDetectsDivergenceAndIgnoresMatchOrInvalid() {

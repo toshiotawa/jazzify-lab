@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 import os
 
 /// AVAudioSession の出力ルート判定を共通化する。
@@ -11,6 +12,14 @@ enum AudioRouteHelper {
                 || output.portType == .bluetoothA2DP
                 || output.portType == .bluetoothHFP
                 || output.portType == .usbAudio
+        }
+    }
+
+    static func hasBluetoothOutput(session: AVAudioSession = .sharedInstance()) -> Bool {
+        session.currentRoute.outputs.contains { output in
+            output.portType == .bluetoothA2DP
+                || output.portType == .bluetoothHFP
+                || output.portType == .bluetoothLE
         }
     }
 }
@@ -54,9 +63,16 @@ enum AudioOutputFormatResolver {
 
     static func preferredSessionSampleRate(
         recordingEnabled: Bool,
-        isScreenCaptured: Bool
+        isScreenCaptured: Bool,
+        isBluetoothOutput: Bool = false
     ) -> Double {
-        (recordingEnabled || isScreenCaptured) ? preferredHighRate : 0
+        if recordingEnabled {
+            return preferredHighRate
+        }
+        if isScreenCaptured, !isBluetoothOutput {
+            return preferredHighRate
+        }
+        return 0
     }
 
     static func postStartMismatchedRate(
@@ -166,7 +182,7 @@ enum AudioRateDiagnostics {
     private static func emit(_ message: String) {
         logger.notice("\(message, privacy: .public)")
         #if DEBUG
-        print("[AudioRate] \(message)")
+        NSLog("[AudioRate] %@", message)
         #endif
     }
 
