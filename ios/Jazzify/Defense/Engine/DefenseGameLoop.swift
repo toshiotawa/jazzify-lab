@@ -83,28 +83,18 @@ enum DefenseGameLoop {
         runtime.attackTrigger == .note
     }
 
-    private static func isPhraseCompletionClearMode(_ runtime: DefenseRuntimeState) -> Bool {
+    private static func isEnemyKillClearMode(_ runtime: DefenseRuntimeState) -> Bool {
         !runtime.practiceMode
             && runtime.tutorial == nil
-            && runtime.targetPhraseCompletions > 0
+            && runtime.targetEnemiesDefeated > 0
     }
 
     private static func timedClearEnabled(runtime: DefenseRuntimeState) -> Bool {
-        if isPhraseCompletionClearMode(runtime) { return false }
+        if isEnemyKillClearMode(runtime) { return false }
         if let tutorial = runtime.tutorial {
             return tutorial.timedClearEnabled
         }
         return true
-    }
-
-    static func recordPhraseCompletion(runtime: inout DefenseRuntimeState) -> Bool {
-        guard isPhraseCompletionClearMode(runtime) else { return false }
-        runtime.phraseCompletions += 1
-        if runtime.phraseCompletions >= runtime.targetPhraseCompletions {
-            runtime.result = .clear
-            return true
-        }
-        return false
     }
 
     static func spawnCallResponseInitialEnemy(
@@ -204,14 +194,14 @@ enum DefenseGameLoop {
         return difficulty.spawnIntervalSec * DefenseEnemyConfig.waveSpawnIntervalMult(for: runtime.waveIndex)
     }
 
-    private static func syncPhraseClearWaveState(
+    private static func syncKillClearWaveState(
         runtime: inout DefenseRuntimeState,
         spawnIntervalSec: Double
     ) {
         guard !runtime.practiceMode else { return }
         let nextWaveIndex = DefenseCallResponseCombat.waveIndex(
-            phraseCompletions: runtime.phraseCompletions,
-            targetPhraseCompletions: runtime.targetPhraseCompletions
+            enemiesDefeated: runtime.enemiesDefeated,
+            targetEnemiesDefeated: runtime.targetEnemiesDefeated
         )
         guard nextWaveIndex != runtime.waveIndex else { return }
         runtime.waveIndex = nextWaveIndex
@@ -293,6 +283,10 @@ enum DefenseGameLoop {
         if target.hp <= 0 {
             target.isActive = false
             runtime.enemiesDefeated += 1
+            if isEnemyKillClearMode(runtime),
+               runtime.enemiesDefeated >= runtime.targetEnemiesDefeated {
+                runtime.result = .clear
+            }
         }
         runtime.enemies[enemyIndex] = target
     }
@@ -310,6 +304,7 @@ enum DefenseGameLoop {
     }
 
     private static func updateFireballs(runtime: inout DefenseRuntimeState, deltaTime: TimeInterval) {
+        guard runtime.result == .playing else { return }
         let showPopup = isPhraseMode(runtime)
         let scaling = isWaveScaling(runtime)
         let fireballDamage = DefenseEnemyConfig.fireballDamage(
@@ -339,6 +334,9 @@ enum DefenseGameLoop {
                     knockbackImpulse: fireballKnockback,
                     showPopup: showPopup
                 )
+                if runtime.result != .playing {
+                    return
+                }
             }
 
             if runtime.fireballs[fbIndex].x > fireballDespawnX {
@@ -361,8 +359,8 @@ enum DefenseGameLoop {
         deltaTime: TimeInterval
     ) {
         let interval = spawnIntervalSec(runtime: runtime, difficulty: difficulty)
-        if isPhraseCompletionClearMode(runtime) {
-            syncPhraseClearWaveState(runtime: &runtime, spawnIntervalSec: interval)
+        if isEnemyKillClearMode(runtime) {
+            syncKillClearWaveState(runtime: &runtime, spawnIntervalSec: interval)
         } else {
             syncWaveState(runtime: &runtime, spawnIntervalSec: interval)
         }

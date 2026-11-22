@@ -480,17 +480,18 @@ struct DefenseGameView: View {
         let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
         let timeLabel: String
         if session.practiceMode {
-            timeLabel = "∞  ·  KO \(session.runtime.enemiesDefeated)"
-        } else if let progress = session.hud.phraseProgressLabel {
+            timeLabel = "∞  ·  KO \(session.hud.enemiesDefeated)"
+        } else if session.hud.targetEnemiesDefeated > 0 {
+            let koProgress = "KO \(session.hud.enemiesDefeated)/\(session.hud.targetEnemiesDefeated)"
             if session.hud.wave > 0 {
-                timeLabel = "\(progress)  ·  KO \(session.runtime.enemiesDefeated)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
+                timeLabel = "\(koProgress)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
             } else {
-                timeLabel = "\(progress)  ·  KO \(session.runtime.enemiesDefeated)"
+                timeLabel = koProgress
             }
         } else if session.hud.wave > 0 {
-            timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
+            timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.hud.enemiesDefeated)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
         } else {
-            timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)"
+            timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.hud.enemiesDefeated)"
         }
 
         return EarTrainingHUDView(

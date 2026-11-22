@@ -15,7 +15,8 @@ struct DefenseHudState: Equatable {
     var playerHp: Int
     var playerMaxHp: Int
     var remainSec: Int
-    var phraseProgressLabel: String?
+    var enemiesDefeated: Int
+    var targetEnemiesDefeated: Int
     /// 1-based wave number; 0 hides wave UI (practice mode).
     var wave: Int
     var elapsedInt: Int
@@ -138,7 +139,8 @@ final class DefenseGameSession: ObservableObject {
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
             remainSec: Int(runtime.surviveSeconds),
-            phraseProgressLabel: nil,
+            enemiesDefeated: 0,
+            targetEnemiesDefeated: 0,
             wave: practiceMode ? 0 : 1,
             elapsedInt: 0,
             result: .playing
@@ -335,14 +337,18 @@ final class DefenseGameSession: ObservableObject {
         lastCallResponsePhase = .call
         lastCallResponseLoopIndex = 0
 
-        let phraseClearTarget: Int
+        let killClearTarget: Int
         if !practiceMode, tutorialOptions == nil, callResponseConfig != nil {
-            phraseClearTarget = DefenseCallResponseCombat.clearTarget(stage: stage, phrases: activePhrases) ?? 0
+            killClearTarget = DefenseCallResponseCombat.clearTarget(
+                stage: stage,
+                phrases: activePhrases,
+                difficulty: effectiveDifficulty
+            ) ?? 0
         } else {
-            phraseClearTarget = 0
+            killClearTarget = 0
         }
-        runtime.targetPhraseCompletions = phraseClearTarget
-        runtime.phraseCompletions = 0
+        runtime.targetEnemiesDefeated = killClearTarget
+        runtime.enemiesDefeated = 0
         runtime.callResponseActive = callResponseConfig != nil && tutorialOptions == nil
 
         if callResponseConfig != nil {
@@ -597,11 +603,6 @@ final class DefenseGameSession: ObservableObject {
         if evaluation.measureCompleted, stage.attackTrigger == .note, !isChordVoicingStage {
             _ = DefenseGameLoop.chargeSp(runtime: &runtime)
         }
-        if evaluation.phraseCompleted, !practiceMode, tutorialOptions == nil {
-            if DefenseGameLoop.recordPhraseCompletion(runtime: &runtime) {
-                return
-            }
-        }
         if !practiceMode, evaluation.pendingSwitch {
             if isChordVoicingStage, let keyState = voicingKeyState {
                 applyVoicingKeyState(DefenseVoicingKeys.advanceKeyState(keyState))
@@ -743,14 +744,12 @@ final class DefenseGameSession: ObservableObject {
         DefenseGameLoop.tick(runtime: &runtime, difficulty: effectiveDifficulty, deltaTime: dt)
 
         let elapsedInt = Int(runtime.elapsedSec)
-        let progressLabel: String? = runtime.targetPhraseCompletions > 0 && !practiceMode
-            ? "\(runtime.phraseCompletions)/\(runtime.targetPhraseCompletions)"
-            : nil
         let nextHud = DefenseHudState(
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
             remainSec: max(0, Int((runtime.surviveSeconds - runtime.elapsedSec).rounded(.up))),
-            phraseProgressLabel: progressLabel,
+            enemiesDefeated: runtime.enemiesDefeated,
+            targetEnemiesDefeated: !practiceMode ? runtime.targetEnemiesDefeated : 0,
             wave: practiceMode ? 0 : runtime.waveIndex + 1,
             elapsedInt: elapsedInt,
             result: runtime.result

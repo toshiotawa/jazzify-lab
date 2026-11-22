@@ -10,7 +10,6 @@ import {
   DEFENSE_CALL_RESPONSE_INITIAL_ENEMY_X,
   KNOCKBACK_IMPULSE,
   performDefenseSlash,
-  recordDefensePhraseCompletion,
   spawnCallResponseInitialEnemy,
   spawnDefenseFireball,
   spawnEnemyIfDue,
@@ -510,19 +509,44 @@ describe('defenseEngine', () => {
     expect(runtime.enemies[0]?.x).toBeCloseTo(DEFENSE_CALL_RESPONSE_INITIAL_ENEMY_X);
   });
 
-  it('clears on phrase completion target', () => {
+  it('clears when enemies defeated reaches kill target', () => {
     const runtime = createDefenseRuntime(5, 120, 3);
-    runtime.targetPhraseCompletions = 3;
-    runtime.phraseCompletions = 1;
-    expect(recordDefensePhraseCompletion(runtime)).toBe(false);
-    expect(runtime.result).toBe('playing');
-    expect(recordDefensePhraseCompletion(runtime)).toBe(true);
+    runtime.targetEnemiesDefeated = 1;
+    runtime.callResponseActive = true;
+    spawnCallResponseInitialEnemy(runtime, easyDifficulty);
+    expect(performDefenseSlash(runtime)).toBe(true);
+    expect(runtime.result).toBe('clear');
+    expect(runtime.enemiesDefeated).toBe(1);
+  });
+
+  it('clears immediately when SP fireball reaches kill target', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.targetEnemiesDefeated = 1;
+    runtime.callResponseActive = true;
+    spawnCallResponseInitialEnemy(runtime, easyDifficulty);
+    const enemy = runtime.enemies[0];
+    if (enemy) {
+      enemy.x = DEFENSE_PLAYER_X + 60;
+      enemy.hp = DEFENSE_DAMAGE_UNIT;
+    }
+    expect(spawnDefenseFireball(runtime)).toBe(true);
+    updateDefenseFireballs(runtime, 0.1);
+    expect(runtime.enemiesDefeated).toBe(1);
     expect(runtime.result).toBe('clear');
   });
 
-  it('does not timed-clear when phrase completion mode is active', () => {
+  it('advances wave index from KO progress in kill-clear mode', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.targetEnemiesDefeated = 40;
+    runtime.enemiesDefeated = 10;
+    runtime.enemyBehavior = 'pause';
+    spawnEnemyIfDue(runtime, easyDifficulty, 0.016);
+    expect(runtime.waveIndex).toBe(1);
+  });
+
+  it('does not timed-clear when kill-clear mode is active', () => {
     const runtime = createDefenseRuntime(5, 2, 3);
-    runtime.targetPhraseCompletions = 12;
+    runtime.targetEnemiesDefeated = 12;
     tickDefenseSimulation(runtime, easyDifficulty, 3);
     expect(runtime.result).toBe('playing');
   });

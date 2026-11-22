@@ -1,7 +1,7 @@
 /**
  * Defense mode combat simulation (pure functions, mutable runtime).
  */
-import { getDefenseWaveIndexFromPhraseProgress } from '@/game/defense/defenseCallResponseCombat';
+import { getDefenseWaveIndexFromKillProgress } from '@/game/defense/defenseEnemyConfig';
 import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_DAMAGE_POPUP_SEC,
@@ -86,20 +86,20 @@ const applyResolvedStatsToEnemy = (
   enemy.knockbackMult = resolved.knockbackMult;
 };
 
-const isPhraseCompletionClearMode = (runtime: DefenseRuntime): boolean => (
+const isEnemyKillClearMode = (runtime: DefenseRuntime): boolean => (
   !runtime.practiceMode
   && runtime.tutorial == null
-  && runtime.targetPhraseCompletions > 0
+  && runtime.targetEnemiesDefeated > 0
 );
 
-const syncPhraseClearWaveState = (
+const syncKillClearWaveState = (
   runtime: DefenseRuntime,
   spawnIntervalSec: number,
 ): void => {
   if (runtime.practiceMode) return;
-  const nextWaveIndex = getDefenseWaveIndexFromPhraseProgress(
-    runtime.phraseCompletions,
-    runtime.targetPhraseCompletions,
+  const nextWaveIndex = getDefenseWaveIndexFromKillProgress(
+    runtime.enemiesDefeated,
+    runtime.targetEnemiesDefeated,
   );
   if (nextWaveIndex === runtime.waveIndex) return;
   runtime.waveIndex = nextWaveIndex;
@@ -161,6 +161,12 @@ const applyEnemyDamage = (
     target.active = false;
     runtime.activeEnemyCount = Math.max(0, runtime.activeEnemyCount - 1);
     runtime.enemiesDefeated += 1;
+    if (
+      isEnemyKillClearMode(runtime)
+      && runtime.enemiesDefeated >= runtime.targetEnemiesDefeated
+    ) {
+      runtime.result = 'clear';
+    }
   }
 };
 
@@ -197,6 +203,7 @@ export const updateDefenseFireballs = (
   runtime: DefenseRuntime,
   dt: number,
 ): void => {
+  if (runtime.result !== 'playing') return;
   const showPopup = isPhraseMode(runtime);
   const scaling = isWaveScaling(runtime);
   const fireballDamage = getDefenseFireballDamage(runtime.waveIndex, scaling);
@@ -223,6 +230,9 @@ export const updateDefenseFireballs = (
         fireballKnockback,
         showPopup,
       );
+      if (runtime.result !== 'playing') {
+        return;
+      }
     }
 
     if (fb.x > FIREBALL_DESPAWN_X) {
@@ -336,8 +346,8 @@ export const spawnEnemyIfDue = (
   if (runtime.result !== 'playing') return;
 
   const spawnIntervalSec = getSpawnIntervalSec(runtime, difficulty);
-  if (isPhraseCompletionClearMode(runtime)) {
-    syncPhraseClearWaveState(runtime, spawnIntervalSec);
+  if (isEnemyKillClearMode(runtime)) {
+    syncKillClearWaveState(runtime, spawnIntervalSec);
   } else {
     syncWaveState(runtime, spawnIntervalSec);
   }
@@ -369,16 +379,6 @@ export const spawnEnemyIfDue = (
   );
 
   activateSpawnedEnemy(runtime, slot, enemyType, DEFENSE_SPAWN_X, difficulty);
-};
-
-export const recordDefensePhraseCompletion = (runtime: DefenseRuntime): boolean => {
-  if (!isPhraseCompletionClearMode(runtime)) return false;
-  runtime.phraseCompletions += 1;
-  if (runtime.phraseCompletions >= runtime.targetPhraseCompletions) {
-    runtime.result = 'clear';
-    return true;
-  }
-  return false;
 };
 
 export const updateDefenseEnemies = (
@@ -507,7 +507,7 @@ export const performDefenseSlash = (
 };
 
 const isTimedClearEnabled = (runtime: DefenseRuntime): boolean => {
-  if (isPhraseCompletionClearMode(runtime)) return false;
+  if (isEnemyKillClearMode(runtime)) return false;
   if (runtime.practiceMode) return false;
   if (runtime.tutorial) return runtime.tutorial.timedClearEnabled;
   return true;

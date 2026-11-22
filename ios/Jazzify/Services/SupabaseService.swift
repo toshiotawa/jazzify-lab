@@ -2462,6 +2462,7 @@ final class SupabaseService: Sendable {
             let audio_loop_bars: Int?
             let call_response_bars: Int?
             let call_response_response_bars: Int?
+            let call_response_laps: Int?
             let progression_bars: Int?
             let audio_registration_mode: String
             let audio_url: String?
@@ -2546,6 +2547,7 @@ final class SupabaseService: Sendable {
             let audio_loop_bars: Int?
             let call_response_bars: Int?
             let call_response_response_bars: Int?
+            let call_response_laps: Int?
             let progression_bars: Int?
             let audio_registration_mode: String
             let audio_url: String?
@@ -2573,7 +2575,7 @@ final class SupabaseService: Sendable {
             .from("defense_stages")
             .select("""
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-                audio_loop_bars, call_response_bars, call_response_response_bars,
+                audio_loop_bars, call_response_bars, call_response_response_bars, call_response_laps,
                 progression_bars, audio_registration_mode, audio_url, melody_audio_url,
                 staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
                 survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode,
@@ -2611,6 +2613,7 @@ final class SupabaseService: Sendable {
             audio_loop_bars: nestedStage.audio_loop_bars,
             call_response_bars: nestedStage.call_response_bars,
             call_response_response_bars: nestedStage.call_response_response_bars,
+            call_response_laps: nestedStage.call_response_laps,
             progression_bars: nestedStage.progression_bars,
             audio_registration_mode: nestedStage.audio_registration_mode,
             audio_url: nestedStage.audio_url,
@@ -2745,6 +2748,7 @@ final class SupabaseService: Sendable {
             audioLoopBars: stage.audio_loop_bars,
             callResponseBars: stage.call_response_bars,
             callResponseResponseBars: stage.call_response_response_bars,
+            callResponseLaps: stage.call_response_laps,
             staffLayout: stage.staff_layout == "grand" ? .grand : .treble,
             attackTrigger: stage.attack_trigger == "measure" ? .measure : .note,
             keyFifths: stage.key_fifths,

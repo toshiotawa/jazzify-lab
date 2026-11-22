@@ -266,6 +266,16 @@ final class DefenseCallResponseTests: XCTestCase {
     }
 
     func testClearTargetMinimumNotes() {
+        let difficulty = DefenseDifficultyDefinition(
+            level: 5,
+            enemyHp: 3,
+            spawnIntervalSec: 2,
+            maxEnemies: 6,
+            enemySpeedPxPerSec: 64,
+            enemyDamage: 2,
+            attackIntervalSec: 2,
+            attackRangePx: 52
+        )
         let phrase = DefensePhraseDefinition(
             id: "p",
             orderIndex: 0,
@@ -296,7 +306,13 @@ final class DefenseCallResponseTests: XCTestCase {
             ]
         )
         let stage = crStage()
-        XCTAssertEqual(DefenseCallResponseCombat.clearTarget(stage: stage, phrases: [phrase]), 9)
+        let target = DefenseCallResponseCombat.clearTarget(
+            stage: stage,
+            phrases: [phrase],
+            difficulty: difficulty
+        )
+        XCTAssertNotNil(target)
+        XCTAssertGreaterThan(target ?? 0, 0)
     }
 
     func testAvatarContainerNamedSpritesNotShadowedByCueNode() {

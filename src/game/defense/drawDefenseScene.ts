@@ -394,23 +394,28 @@ const drawDefenseHud = (
     ctx.fillStyle = '#67e8f9';
     ctx.font = `900 30px ${HUD_FONT}`;
     ctx.fillText('PRACTICE', width / 2, 18);
-  } else if (hud.phraseProgressLabel) {
+  } else if (hud.targetEnemiesDefeated > 0) {
     ctx.fillStyle = '#ffffff';
     ctx.font = `900 30px ${HUD_FONT}`;
-    ctx.fillText(hud.phraseProgressLabel, width / 2, 18);
+    ctx.fillText(`KO ${hud.enemiesDefeated}/${hud.targetEnemiesDefeated}`, width / 2, 18);
   } else {
     ctx.fillStyle = '#ffffff';
     ctx.font = `900 30px ${HUD_FONT}`;
     ctx.fillText(`${hud.remainSec}s`, width / 2, 18);
   }
 
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = `900 14px ${HUD_FONT}`;
-  ctx.textAlign = 'center';
-  const koLabel = hud.wave > 0
-    ? `KO ${hud.enemiesDefeated}  ·  WAVE ${hud.wave}/${DEFENSE_WAVE_COUNT}`
-    : `KO ${hud.enemiesDefeated}`;
-  ctx.fillText(koLabel, width / 2, 56);
+  const isKillClearHud = !hud.practiceMode && hud.targetEnemiesDefeated > 0;
+  const koLabel = isKillClearHud
+    ? (hud.wave > 0 ? `WAVE ${hud.wave}/${DEFENSE_WAVE_COUNT}` : '')
+    : (hud.wave > 0
+      ? `KO ${hud.enemiesDefeated}  ·  WAVE ${hud.wave}/${DEFENSE_WAVE_COUNT}`
+      : `KO ${hud.enemiesDefeated}`);
+  if (koLabel.length > 0) {
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = `900 14px ${HUD_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(koLabel, width / 2, 56);
+  }
 };
 
 const DEFENSE_LEVEL_UP_SEC = 1.5;

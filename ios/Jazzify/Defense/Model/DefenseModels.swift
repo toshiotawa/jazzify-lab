@@ -53,6 +53,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let audioLoopBars: Int?
     let callResponseBars: Int?
     let callResponseResponseBars: Int?
+    let callResponseLaps: Int?
     let staffLayout: DefenseStaffLayout
     let attackTrigger: DefenseAttackTrigger
     let keyFifths: Int
@@ -87,6 +88,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
         audioLoopBars: Int? = nil,
         callResponseBars: Int? = nil,
         callResponseResponseBars: Int? = nil,
+        callResponseLaps: Int? = nil,
         staffLayout: DefenseStaffLayout,
         attackTrigger: DefenseAttackTrigger,
         keyFifths: Int,
@@ -120,6 +122,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
         self.audioLoopBars = audioLoopBars
         self.callResponseBars = callResponseBars
         self.callResponseResponseBars = callResponseResponseBars
+        self.callResponseLaps = callResponseLaps
         self.staffLayout = staffLayout
         self.attackTrigger = attackTrigger
         self.keyFifths = keyFifths
@@ -228,8 +231,7 @@ struct DefenseRuntimeState: Sendable {
     var attackTrigger: DefenseAttackTrigger
     var result: DefenseGameResult = .playing
     var enemiesDefeated: Int = 0
-    var targetPhraseCompletions: Int = 0
-    var phraseCompletions: Int = 0
+    var targetEnemiesDefeated: Int = 0
     var callResponseActive: Bool = false
     var spawnTimerSec: TimeInterval = 0
     var nextEnemyIndex: Int = 0

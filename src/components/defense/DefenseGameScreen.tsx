@@ -31,7 +31,6 @@ import DeferredEarTrainingPianoOverlay, {
 import {
   chargeDefenseSp,
   performDefenseSlash,
-  recordDefensePhraseCompletion,
   spawnCallResponseInitialEnemy,
   spawnTutorialInitialEnemies,
   tickDefenseSimulation,
@@ -248,7 +247,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     playerHp: stage.playerHp,
     playerMaxHp: stage.playerHp,
     remainSec: stage.surviveSeconds,
-    phraseProgressLabel: null,
+    targetEnemiesDefeated: 0,
     enemiesDefeated: 0,
     wave: practiceMode ? 0 : 1,
     practiceMode,
@@ -340,11 +339,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     lastCallResponsePhaseRef.current = 'call';
     lastCallResponseLoopIndexRef.current = 0;
 
-    const phraseClearTarget = !practiceMode && !isTutorialSession && callResponseConfig != null
-      ? computeDefenseCallResponseClearTarget(stage, activePhrases) ?? 0
+    const killClearTarget = !practiceMode && !isTutorialSession && callResponseConfig != null
+      ? computeDefenseCallResponseClearTarget(stage, activePhrases, effectiveDifficulty) ?? 0
       : 0;
-    runtimeRef.current.targetPhraseCompletions = phraseClearTarget;
-    runtimeRef.current.phraseCompletions = 0;
+    runtimeRef.current.targetEnemiesDefeated = killClearTarget;
+    runtimeRef.current.enemiesDefeated = 0;
     runtimeRef.current.callResponseActive = callResponseConfig != null && !isTutorialSession;
 
     if (callResponseConfig != null) {
@@ -809,12 +808,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       chargeDefenseSp(runtime);
     }
 
-    if (evaluation.phraseCompleted && !isTutorialSession && !practiceMode) {
-      if (recordDefensePhraseCompletion(runtime)) {
-        return;
-      }
-    }
-
     if (!isTutorialSession && !practiceMode && evaluation.pendingSwitch) {
       if (isChordVoicingStage && voicingKeyStateRef.current != null) {
         const nextKeyState = advanceVoicingKey(voicingKeyStateRef.current);
@@ -1227,9 +1220,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       hud.playerHp = runtime.playerHp;
       hud.playerMaxHp = runtime.playerMaxHp;
       hud.remainSec = Math.max(0, Math.ceil(runtime.surviveSeconds - runtime.elapsedSec));
-      hud.phraseProgressLabel = runtime.targetPhraseCompletions > 0 && !practiceMode
-        ? `${runtime.phraseCompletions}/${runtime.targetPhraseCompletions}`
-        : null;
+      hud.targetEnemiesDefeated = runtime.targetEnemiesDefeated > 0 && !practiceMode
+        ? runtime.targetEnemiesDefeated
+        : 0;
       hud.enemiesDefeated = runtime.enemiesDefeated;
       hud.wave = practiceMode ? 0 : runtime.waveIndex + 1;
       canvasRef.current?.draw(runtime, hudRef.current);

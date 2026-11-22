@@ -83,6 +83,7 @@ export interface DefenseStage {
   readonly audioLoopBars?: number | null;
   readonly callResponseBars?: number | null;
   readonly callResponseResponseBars?: number | null;
+  readonly callResponseLaps?: number | null;
   readonly staffLayout: DefenseStaffLayout;
   readonly attackTrigger: DefenseAttackTrigger;
   readonly keyFifths: number;
@@ -197,9 +198,8 @@ export interface DefenseRuntime {
   attackTrigger: DefenseAttackTrigger;
   result: DefenseGameResult;
   enemiesDefeated: number;
-  /** Phrase-completion clear (call-and-response stages); 0 = timed survive clear. */
-  targetPhraseCompletions: number;
-  phraseCompletions: number;
+  /** Kill-count clear (call-and-response stages); 0 = timed survive clear. */
+  targetEnemiesDefeated: number;
   callResponseActive: boolean;
   spawnTimerSec: number;
   nextEnemyIndex: number;
@@ -270,8 +270,7 @@ export const createDefenseRuntime = (
   attackTrigger,
   result: 'playing',
   enemiesDefeated: 0,
-  targetPhraseCompletions: 0,
-  phraseCompletions: 0,
+  targetEnemiesDefeated: 0,
   callResponseActive: false,
   spawnTimerSec: 0,
   nextEnemyIndex: 0,

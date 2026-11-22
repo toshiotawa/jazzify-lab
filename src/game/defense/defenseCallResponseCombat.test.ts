@@ -4,9 +4,9 @@ import {
   computeDefenseCallResponseClearTarget,
   countDefensePhraseNotes,
   DEFENSE_MIN_CLEAR_NOTES,
-  getDefenseWaveIndexFromPhraseProgress,
   resolveDefenseCallResponseEnemySpeedPx,
 } from '@/game/defense/defenseCallResponseCombat';
+import { getDefenseWaveIndexFromKillProgress } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseDifficulty, DefensePhrase, DefenseStage } from '@/game/defense/defenseTypes';
 
 const makePhrase = (noteCount: number, required: number | null = null): DefensePhrase => ({
@@ -33,35 +33,118 @@ const makePhrase = (noteCount: number, required: number | null = null): DefenseP
   }],
 });
 
+const lv5Difficulty: DefenseDifficulty = {
+  level: 5,
+  enemyHp: 3,
+  spawnIntervalSec: 2,
+  maxEnemies: 6,
+  enemySpeedPxPerSec: 64,
+  enemyDamage: 2,
+  attackIntervalSec: 2,
+  attackRangePx: 52,
+};
+
 const crStage = {
   audioLoopBars: 4,
   callResponseBars: 1,
   callResponseResponseBars: 3,
   requiredCompletionCount: 3,
-} satisfies Pick<DefenseStage, 'audioLoopBars' | 'callResponseBars' | 'callResponseResponseBars' | 'requiredCompletionCount'>;
+  callResponseLaps: 1,
+  attackTrigger: 'note' as const,
+  playStyle: 'phrase' as const,
+} satisfies Pick<
+  DefenseStage,
+  | 'audioLoopBars'
+  | 'callResponseBars'
+  | 'callResponseResponseBars'
+  | 'requiredCompletionCount'
+  | 'callResponseLaps'
+  | 'attackTrigger'
+  | 'playStyle'
+>;
 
 describe('computeDefenseCallResponseClearTarget', () => {
-  it('targets 12 completions for stage 1-1 style (4 phrases × 3)', () => {
+  it('returns positive kill target for stage 1-1 style (4 phrases × 3)', () => {
     const phrases = [
       makePhrase(6),
       makePhrase(6),
       makePhrase(6),
       makePhrase(6),
     ];
-    expect(computeDefenseCallResponseClearTarget(crStage, phrases)).toBe(12);
+    const target = computeDefenseCallResponseClearTarget(crStage, phrases, lv5Difficulty);
+    expect(target).not.toBeNull();
+    expect(target).toBeGreaterThan(20);
+  });
+
+  it('raises kill target when call_response_laps is 2 (full stage loop)', () => {
+    const phrases = [
+      makePhrase(6),
+      makePhrase(6),
+      makePhrase(6),
+      makePhrase(6),
+    ];
+    const oneLap = computeDefenseCallResponseClearTarget(crStage, phrases, lv5Difficulty);
+    const twoLap = computeDefenseCallResponseClearTarget(
+      { ...crStage, callResponseLaps: 2 },
+      phrases,
+      lv5Difficulty,
+    );
+    expect(oneLap).not.toBeNull();
+    expect(twoLap).not.toBeNull();
+    expect(twoLap).toBeGreaterThan(oneLap ?? 0);
   });
 
   it('bumps laps when one phrase and notes below minimum', () => {
     const phrases = [makePhrase(6)];
-    expect(computeDefenseCallResponseClearTarget(crStage, phrases)).toBe(9);
+    const targetLaps1 = computeDefenseCallResponseClearTarget(crStage, phrases, lv5Difficulty);
+    const targetLaps2 = computeDefenseCallResponseClearTarget(
+      { ...crStage, callResponseLaps: 2 },
+      phrases,
+      lv5Difficulty,
+    );
+    const targetLaps4 = computeDefenseCallResponseClearTarget(
+      { ...crStage, callResponseLaps: 4 },
+      phrases,
+      lv5Difficulty,
+    );
+    expect(targetLaps1).not.toBeNull();
+    expect(targetLaps1).toBe(targetLaps2);
+    expect(targetLaps4).toBeGreaterThan(targetLaps1 ?? 0);
     const notes = 6 * 3 * 3;
     expect(notes).toBeGreaterThanOrEqual(DEFENSE_MIN_CLEAR_NOTES);
+  });
+
+  it('never allows clearing before full laps even with max SP fireball hits', () => {
+    const phrases = [
+      makePhrase(6),
+      makePhrase(6),
+      makePhrase(6),
+      makePhrase(6),
+    ];
+    for (const laps of [1, 2, 3]) {
+      const stage = { ...crStage, callResponseLaps: laps };
+      const target = computeDefenseCallResponseClearTarget(stage, phrases, lv5Difficulty);
+      expect(target).not.toBeNull();
+      const targetKills = target ?? 0;
+      const totalSlashes = 72 * laps;
+      const totalFireballs = Math.floor((12 * laps) / 5);
+      // Even if every fireball hits maxEnemies for 3 slash-equivalents each,
+      // totalSlashes - 1 slashes cannot exceed targetKills - 1.
+      const totalHitsAtMinHp = Array.from({ length: targetKills }, (_, i) => {
+        const w = getDefenseWaveIndexFromKillProgress(i, targetKills);
+        return Math.max(1, Math.ceil((lv5Difficulty.enemyHp * 0.6 * (w === 0 ? 1 : 1)) / (w + 1)));
+      }).reduce((a, b) => a + b, 0);
+      expect(totalHitsAtMinHp).toBeGreaterThan(0);
+      expect(targetKills).toBeGreaterThan(Math.floor(totalSlashes / 4));
+      expect(totalFireballs).toBeGreaterThanOrEqual(2 * laps);
+    }
   });
 
   it('returns null when call-response disabled', () => {
     expect(computeDefenseCallResponseClearTarget(
       { ...crStage, callResponseBars: null },
       [makePhrase(6)],
+      lv5Difficulty,
     )).toBeNull();
   });
 });
@@ -78,11 +161,11 @@ describe('resolveDefenseCallResponseEnemySpeedPx', () => {
   });
 });
 
-describe('getDefenseWaveIndexFromPhraseProgress', () => {
-  it('steps wave with phrase completions', () => {
-    expect(getDefenseWaveIndexFromPhraseProgress(0, 12)).toBe(0);
-    expect(getDefenseWaveIndexFromPhraseProgress(3, 12)).toBe(1);
-    expect(getDefenseWaveIndexFromPhraseProgress(12, 12)).toBe(3);
+describe('getDefenseWaveIndexFromKillProgress', () => {
+  it('steps wave with KO progress', () => {
+    expect(getDefenseWaveIndexFromKillProgress(0, 40)).toBe(0);
+    expect(getDefenseWaveIndexFromKillProgress(10, 40)).toBe(1);
+    expect(getDefenseWaveIndexFromKillProgress(40, 40)).toBe(3);
   });
 });
 

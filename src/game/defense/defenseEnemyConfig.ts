@@ -116,6 +116,18 @@ export const getDefenseWaveIndex = (
   return Math.min(DEFENSE_WAVE_COUNT - 1, Math.max(0, index));
 };
 
+export const getDefenseWaveIndexFromKillProgress = (
+  enemiesDefeated: number,
+  targetEnemiesDefeated: number,
+): number => {
+  if (targetEnemiesDefeated <= 0) {
+    return 0;
+  }
+  const ratio = Math.min(1, enemiesDefeated / targetEnemiesDefeated);
+  const index = Math.floor(ratio * DEFENSE_WAVE_COUNT);
+  return Math.min(DEFENSE_WAVE_COUNT - 1, Math.max(0, index));
+};
+
 export const pickDefenseWaveEnemyType = (
   waveIndex: number,
   spawnCount: number,
