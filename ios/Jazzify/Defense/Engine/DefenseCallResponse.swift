@@ -2,7 +2,9 @@ import Foundation
 
 struct DefenseCallResponseConfig: Equatable, Sendable {
     let audioLoopBars: Int
-    let callResponseBars: Int
+    let callBars: Int
+    let responseBars: Int
+    let cycleBars: Int
 }
 
 enum DefenseCallResponsePhase: Equatable, Sendable {
@@ -29,6 +31,7 @@ struct DefenseCallResponseSnapshot: Equatable, Sendable {
     let enemyBehavior: DefenseEnemyBehavior
     let cue: DefenseCallResponseCue?
     let barIndexInLoop: Int
+    let loopIndex: Int
     let danceBeatPhase: Double
 }
 
@@ -42,17 +45,36 @@ enum DefenseCallResponse {
         enemyBehavior: .approach,
         cue: nil,
         barIndexInLoop: 0,
+        loopIndex: 0,
         danceBeatPhase: 0
     )
 
     static func config(for stage: DefenseStageDefinition) -> DefenseCallResponseConfig? {
-        guard let callResponseBars = stage.callResponseBars,
+        guard let callBars = stage.callResponseBars,
               let audioLoopBars = stage.audioLoopBars,
-              callResponseBars >= 1,
-              audioLoopBars >= callResponseBars * 2,
-              audioLoopBars % (callResponseBars * 2) == 0
+              callBars >= 1,
+              audioLoopBars >= 1
         else { return nil }
-        return DefenseCallResponseConfig(audioLoopBars: audioLoopBars, callResponseBars: callResponseBars)
+
+        let responseBars = stage.callResponseResponseBars ?? callBars
+        let cycleBars = callBars + responseBars
+
+        if stage.callResponseResponseBars == nil {
+            guard audioLoopBars >= callBars * 2,
+                  audioLoopBars % (callBars * 2) == 0
+            else { return nil }
+        } else {
+            guard audioLoopBars >= cycleBars,
+                  audioLoopBars % cycleBars == 0
+            else { return nil }
+        }
+
+        return DefenseCallResponseConfig(
+            audioLoopBars: audioLoopBars,
+            callBars: callBars,
+            responseBars: responseBars,
+            cycleBars: cycleBars
+        )
     }
 
     static func resolve(
@@ -77,6 +99,7 @@ enum DefenseCallResponse {
                 enemyBehavior: .pause,
                 cue: nil,
                 barIndexInLoop: barIndex % config.audioLoopBars,
+                loopIndex: barIndex / config.audioLoopBars,
                 danceBeatPhase: 0
             )
         }
@@ -89,6 +112,7 @@ enum DefenseCallResponse {
                 enemyBehavior: .dance,
                 cue: .listen,
                 barIndexInLoop: 0,
+                loopIndex: 0,
                 danceBeatPhase: 0
             )
         }
@@ -96,9 +120,9 @@ enum DefenseCallResponse {
         let t = max(0, elapsedFromPhraseStartSec)
         let barIndex = Int(floor(t / safeBarSec))
         let barIndexInLoop = barIndex % config.audioLoopBars
-        let cycleBars = config.callResponseBars * 2
-        let posInCycle = barIndex % cycleBars
-        let isCall = posInCycle < config.callResponseBars
+        let loopIndex = barIndex / config.audioLoopBars
+        let posInCycle = barIndex % config.cycleBars
+        let isCall = posInCycle < config.callBars
         let phase: DefenseCallResponsePhase = isCall ? .call : .response
         let enemyBehavior: DefenseEnemyBehavior = isCall ? .dance : .approach
         let cue: DefenseCallResponseCue? = isCall ? .listen : .play
@@ -106,7 +130,7 @@ enum DefenseCallResponse {
         var judgeActive = false
         if !isCall {
             judgeActive = true
-        } else if posInCycle == config.callResponseBars - 1,
+        } else if posInCycle == config.callBars - 1,
                   Double(barIndex + 1) * safeBarSec - t <= leadSec + 1e-9 {
             judgeActive = true
         }
@@ -120,6 +144,7 @@ enum DefenseCallResponse {
             enemyBehavior: enemyBehavior,
             cue: cue,
             barIndexInLoop: barIndexInLoop,
+            loopIndex: loopIndex,
             danceBeatPhase: danceBeatPhase
         )
     }

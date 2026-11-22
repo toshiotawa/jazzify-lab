@@ -31,6 +31,8 @@ import DeferredEarTrainingPianoOverlay, {
 import {
   chargeDefenseSp,
   performDefenseSlash,
+  recordDefensePhraseCompletion,
+  spawnCallResponseInitialEnemy,
   spawnTutorialInitialEnemies,
   tickDefenseSimulation,
 } from '@/game/defense/defenseEngine';
@@ -73,6 +75,10 @@ import {
   resolveDefenseCallResponseState,
   type DefenseCallResponsePhase,
 } from '@/game/defense/defenseCallResponse';
+import {
+  applyDefenseCallResponseDifficulty,
+  computeDefenseCallResponseClearTarget,
+} from '@/game/defense/defenseCallResponseCombat';
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
@@ -194,6 +200,16 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const isSeparateTracksStage = isDefenseSharedProgressionSeparateTracksStage(stage);
   const usesProgressionHud = !isChordVoicingStage && (isSharedProgressionStage || isSeparateTracksStage);
   const callResponseConfig = useMemo(() => getDefenseCallResponseConfig(stage), [stage]);
+  const effectiveDifficulty = useMemo(() => {
+    if (callResponseConfig == null) {
+      return difficulty;
+    }
+    return applyDefenseCallResponseDifficulty(
+      difficulty,
+      callResponseConfig.cycleBars,
+      callResponseConfig.responseBars,
+    );
+  }, [callResponseConfig, difficulty]);
   const runtimeRef = useRef<DefenseRuntime>(
     createDefenseRuntime(
       stage.playerHp,
@@ -209,6 +225,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const pendingSwitchAtRef = useRef<number | null>(null);
   const transitionWaitUntilAudioTimeRef = useRef<number | null>(null);
   const lastCallResponsePhaseRef = useRef<DefenseCallResponsePhase>('call');
+  const lastCallResponseLoopIndexRef = useRef(0);
   const callResponseScratchRef = useRef(createDefenseCallResponseSnapshot());
   const scheduledNextPhraseIndexRef = useRef<number | null>(null);
   const backingRestartGenerationRef = useRef(0);
@@ -231,6 +248,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     playerHp: stage.playerHp,
     playerMaxHp: stage.playerHp,
     remainSec: stage.surviveSeconds,
+    phraseProgressLabel: null,
     enemiesDefeated: 0,
     wave: practiceMode ? 0 : 1,
     practiceMode,
@@ -320,18 +338,28 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     lastFrameRef.current = null;
     transitionWaitUntilAudioTimeRef.current = null;
     lastCallResponsePhaseRef.current = 'call';
+    lastCallResponseLoopIndexRef.current = 0;
+
+    const phraseClearTarget = !practiceMode && !isTutorialSession && callResponseConfig != null
+      ? computeDefenseCallResponseClearTarget(stage, activePhrases) ?? 0
+      : 0;
+    runtimeRef.current.targetPhraseCompletions = phraseClearTarget;
+    runtimeRef.current.phraseCompletions = 0;
+    runtimeRef.current.callResponseActive = callResponseConfig != null && !isTutorialSession;
 
     if (callResponseConfig != null) {
       runtimeRef.current.enemyBehavior = 'dance';
       runtimeRef.current.callResponseCue = 'listen';
       runtimeRef.current.danceBeatPhase = 0;
       if (!isTutorialSession) {
-        runtimeRef.current.spawnTimerSec = difficulty.spawnIntervalSec * 0.8;
+        runtimeRef.current.spawnTimerSec = effectiveDifficulty.spawnIntervalSec * 0.8;
       }
     }
 
     if (isTutorialSession) {
-      spawnTutorialInitialEnemies(runtimeRef.current, difficulty);
+      spawnTutorialInitialEnemies(runtimeRef.current, effectiveDifficulty);
+    } else if (callResponseConfig != null) {
+      spawnCallResponseInitialEnemy(runtimeRef.current, effectiveDifficulty);
     }
 
     phaseRef.current = 'playing';
@@ -340,11 +368,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     stage,
     stage.bpm,
     stage.beatsPerBar,
-    difficulty,
+    effectiveDifficulty,
     callResponseConfig,
     isTutorialSession,
     isSharedProgressionStage,
     isSeparateTracksStage,
+    practiceMode,
+    activePhrases,
   ]);
 
   const trackElapsedForHints = !practiceMode && (
@@ -526,6 +556,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     scheduledNextPhraseIndexRef.current = null;
     transitionWaitUntilAudioTimeRef.current = null;
     lastCallResponsePhaseRef.current = 'call';
+    lastCallResponseLoopIndexRef.current = 0;
     if (!isSharedProgressionStage && !isSeparateTracksStage && previousPendingSwitchAt !== null) {
       if (defenseBackingDeck.getOutputTime() >= previousPendingSwitchAt) {
         defenseBackingDeck.commitSwitch();
@@ -776,6 +807,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     if (evaluation.measureCompleted && stage.attackTrigger === 'note' && !isChordVoicingStage) {
       chargeDefenseSp(runtime);
+    }
+
+    if (evaluation.phraseCompleted && !isTutorialSession && !practiceMode) {
+      if (recordDefensePhraseCompletion(runtime)) {
+        return;
+      }
     }
 
     if (!isTutorialSession && !practiceMode && evaluation.pendingSwitch) {
@@ -1139,23 +1176,24 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             runtime.enemyBehavior = snapshot.enemyBehavior;
             runtime.callResponseCue = snapshot.cue;
             runtime.danceBeatPhase = snapshot.danceBeatPhase;
-            const prevPhase = lastCallResponsePhaseRef.current;
+            const prevLoopIndex = lastCallResponseLoopIndexRef.current;
             if (
-              prevPhase === 'response'
-              && snapshot.phase === 'call'
+              snapshot.loopIndex > prevLoopIndex
               && !judgeRef.current.pendingSwitch
+              && transitionWaitUntilAudioTimeRef.current === null
             ) {
               const reset = resetDefensePhraseProgressForNextCycle(judgeRef.current);
               if (reset !== judgeRef.current) {
                 judgeRef.current = reset;
                 setJudgeSnapshot(reset);
               }
+              lastCallResponseLoopIndexRef.current = snapshot.loopIndex;
             }
             lastCallResponsePhaseRef.current = snapshot.phase;
           }
         }
 
-        tickDefenseSimulation(runtime, difficulty, dt);
+        tickDefenseSimulation(runtime, effectiveDifficulty, dt);
 
         if (trackElapsedForHints) {
           const elapsedFloor = Math.floor(runtime.elapsedSec);
@@ -1189,6 +1227,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       hud.playerHp = runtime.playerHp;
       hud.playerMaxHp = runtime.playerMaxHp;
       hud.remainSec = Math.max(0, Math.ceil(runtime.surviveSeconds - runtime.elapsedSec));
+      hud.phraseProgressLabel = runtime.targetPhraseCompletions > 0 && !practiceMode
+        ? `${runtime.phraseCompletions}/${runtime.targetPhraseCompletions}`
+        : null;
       hud.enemiesDefeated = runtime.enemiesDefeated;
       hud.wave = practiceMode ? 0 : runtime.waveIndex + 1;
       canvasRef.current?.draw(runtime, hudRef.current);
@@ -1218,7 +1259,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       }
     };
   }, [
-    difficulty,
+    effectiveDifficulty,
     callResponseConfig,
     commitScheduledAudioSwitch,
     practiceMode,

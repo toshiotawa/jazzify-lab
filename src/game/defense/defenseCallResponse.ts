@@ -2,9 +2,11 @@ import type { DefenseStage } from '@/game/defense/defenseTypes';
 
 const DEFENSE_CALL_RESPONSE_LEAD_SEC = 0.03;
 
-interface DefenseCallResponseConfig {
+export interface DefenseCallResponseConfig {
   readonly audioLoopBars: number;
-  readonly callResponseBars: number;
+  readonly callBars: number;
+  readonly responseBars: number;
+  readonly cycleBars: number;
 }
 
 export type DefenseCallResponsePhase = 'call' | 'response' | 'transition_wait';
@@ -20,6 +22,7 @@ interface MutableDefenseCallResponseSnapshot {
   enemyBehavior: DefenseEnemyBehavior;
   cue: DefenseCallResponseCue;
   barIndexInLoop: number;
+  loopIndex: number;
   danceBeatPhase: number;
 }
 
@@ -30,24 +33,47 @@ export const createDefenseCallResponseSnapshot = (): MutableDefenseCallResponseS
   enemyBehavior: 'approach',
   cue: null,
   barIndexInLoop: 0,
+  loopIndex: 0,
   danceBeatPhase: 0,
 });
 
 export const getDefenseCallResponseConfig = (
-  stage: Pick<DefenseStage, 'audioLoopBars' | 'callResponseBars'>,
+  stage: Pick<DefenseStage, 'audioLoopBars' | 'callResponseBars' | 'callResponseResponseBars'>,
 ): DefenseCallResponseConfig | null => {
-  const callResponseBars = stage.callResponseBars;
+  const callBars = stage.callResponseBars;
   const audioLoopBars = stage.audioLoopBars;
   if (
-    callResponseBars == null
-    || callResponseBars < 1
+    callBars == null
+    || callBars < 1
     || audioLoopBars == null
-    || audioLoopBars < callResponseBars * 2
-    || audioLoopBars % (callResponseBars * 2) !== 0
+    || audioLoopBars < 1
   ) {
     return null;
   }
-  return { audioLoopBars, callResponseBars };
+
+  const responseBars = stage.callResponseResponseBars ?? callBars;
+  const cycleBars = callBars + responseBars;
+
+  if (stage.callResponseResponseBars == null) {
+    if (
+      audioLoopBars < callBars * 2
+      || audioLoopBars % (callBars * 2) !== 0
+    ) {
+      return null;
+    }
+  } else if (
+    audioLoopBars < cycleBars
+    || audioLoopBars % cycleBars !== 0
+  ) {
+    return null;
+  }
+
+  return {
+    audioLoopBars,
+    callBars,
+    responseBars,
+    cycleBars,
+  };
 };
 
 export const resolveDefenseCallResponseState = (
@@ -68,6 +94,7 @@ export const resolveDefenseCallResponseState = (
     out.enemyBehavior = 'approach';
     out.cue = null;
     out.barIndexInLoop = 0;
+    out.loopIndex = 0;
     out.danceBeatPhase = 0;
     return out;
   }
@@ -86,6 +113,7 @@ export const resolveDefenseCallResponseState = (
     out.enemyBehavior = 'pause';
     out.cue = null;
     out.barIndexInLoop = barIndex % config.audioLoopBars;
+    out.loopIndex = Math.floor(barIndex / config.audioLoopBars);
     out.danceBeatPhase = 0;
     return out;
   }
@@ -97,6 +125,7 @@ export const resolveDefenseCallResponseState = (
     out.enemyBehavior = 'dance';
     out.cue = 'listen';
     out.barIndexInLoop = 0;
+    out.loopIndex = 0;
     out.danceBeatPhase = 0;
     return out;
   }
@@ -104,15 +133,15 @@ export const resolveDefenseCallResponseState = (
   const t = Math.max(0, elapsedFromPhraseStartSec);
   const barIndex = Math.floor(t / safeBarSec);
   const barIndexInLoop = barIndex % config.audioLoopBars;
-  const cycleBars = config.callResponseBars * 2;
-  const posInCycle = barIndex % cycleBars;
-  const isCall = posInCycle < config.callResponseBars;
+  const loopIndex = Math.floor(barIndex / config.audioLoopBars);
+  const posInCycle = barIndex % config.cycleBars;
+  const isCall = posInCycle < config.callBars;
 
   let judgeActive = false;
   if (!isCall) {
     judgeActive = true;
   } else if (
-    posInCycle === config.callResponseBars - 1
+    posInCycle === config.callBars - 1
     && (barIndex + 1) * safeBarSec - t <= DEFENSE_CALL_RESPONSE_LEAD_SEC + 1e-9
   ) {
     judgeActive = true;
@@ -124,6 +153,7 @@ export const resolveDefenseCallResponseState = (
   out.enemyBehavior = isCall ? 'dance' : 'approach';
   out.cue = isCall ? 'listen' : 'play';
   out.barIndexInLoop = barIndexInLoop;
+  out.loopIndex = loopIndex;
   out.danceBeatPhase = (t / safeBarSec) * Math.max(1, beatsPerBar);
   return out;
 };

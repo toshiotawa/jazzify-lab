@@ -7,8 +7,11 @@ import {
 } from '@/game/defense/defenseEnemyConfig';
 import {
   chargeDefenseSp,
+  DEFENSE_CALL_RESPONSE_INITIAL_ENEMY_X,
   KNOCKBACK_IMPULSE,
   performDefenseSlash,
+  recordDefensePhraseCompletion,
+  spawnCallResponseInitialEnemy,
   spawnDefenseFireball,
   spawnEnemyIfDue,
   tickDefenseSimulation,
@@ -478,6 +481,50 @@ describe('defenseEngine', () => {
     expect(enemy.x).toBeCloseTo(DEFENSE_PLAYER_X + 120);
     expect(enemy.moving).toBe(false);
     expect(enemy.attackHitPending).toBe(false);
+  });
+
+  it('does not advance spawn timer while enemies dance (call phase)', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.enemyBehavior = 'dance';
+    runtime.spawnTimerSec = 0;
+    spawnEnemyIfDue(runtime, easyDifficulty, 0.6);
+    expect(runtime.spawnTimerSec).toBeCloseTo(0);
+    expect(runtime.activeEnemyCount).toBe(0);
+  });
+
+  it('instant-spawns when call-response active and no enemies remain', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.callResponseActive = true;
+    runtime.enemyBehavior = 'approach';
+    runtime.spawnTimerSec = 0.1;
+    spawnEnemyIfDue(runtime, easyDifficulty, 0);
+    expect(runtime.activeEnemyCount).toBe(1);
+    expect(runtime.spawnTimerSec).toBe(0);
+  });
+
+  it('places initial call-response enemy at mid-right', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.callResponseActive = true;
+    spawnCallResponseInitialEnemy(runtime, easyDifficulty);
+    expect(runtime.activeEnemyCount).toBe(1);
+    expect(runtime.enemies[0]?.x).toBeCloseTo(DEFENSE_CALL_RESPONSE_INITIAL_ENEMY_X);
+  });
+
+  it('clears on phrase completion target', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.targetPhraseCompletions = 3;
+    runtime.phraseCompletions = 1;
+    expect(recordDefensePhraseCompletion(runtime)).toBe(false);
+    expect(runtime.result).toBe('playing');
+    expect(recordDefensePhraseCompletion(runtime)).toBe(true);
+    expect(runtime.result).toBe('clear');
+  });
+
+  it('does not timed-clear when phrase completion mode is active', () => {
+    const runtime = createDefenseRuntime(5, 2, 3);
+    runtime.targetPhraseCompletions = 12;
+    tickDefenseSimulation(runtime, easyDifficulty, 3);
+    expect(runtime.result).toBe('playing');
   });
 
 });

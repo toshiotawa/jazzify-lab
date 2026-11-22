@@ -193,6 +193,7 @@ def render_call_response_mp3(
     audio_loop_bars: int,
     call_response_bars: int,
     melody_events_in_call_block,
+    response_bars: int | None = None,
 ):
     beat_sec = 60.0 / bpm
     bar_sec = beat_sec * beats_per_bar
@@ -201,7 +202,8 @@ def render_call_response_mp3(
 
     buf_l = [0.0] * n_samples
     buf_r = [0.0] * n_samples
-    cycle_bars = call_response_bars * 2
+    resp_bars = call_response_bars if response_bars is None else response_bars
+    cycle_bars = call_response_bars + resp_bars
 
     for bar_idx in range(audio_loop_bars):
         bar_start = bar_idx * bar_sec
@@ -331,6 +333,28 @@ def main():
             beats_per_bar=4,
             audio_loop_bars=8,
             call_response_bars=1,
+            melody_events_in_call_block=events,
+        )
+
+    # 3) Stage 1-1 (1:3): 4-bar loop, 1-bar call / 3-bar response — new filenames (legacy 8-bar untouched)
+    stage_1_1_phrases_1c3r = [
+        ("defense-stage-1-1-cr-phrase-1-1c3r-bpm120.mp3", [76, 74, 69, 65, 64, 62]),
+        ("defense-stage-1-1-cr-phrase-2-1c3r-bpm120.mp3", [64, 65, 69, 72, 76, 74]),
+        ("defense-stage-1-1-cr-phrase-3-1c3r-bpm120.mp3", [74, 76, 77, 79, 76, 74]),
+        ("defense-stage-1-1-cr-phrase-4-1c3r-bpm120.mp3", [64, 61, 62, 64, 65, 67]),
+    ]
+    for filename, midis in stage_1_1_phrases_1c3r:
+        events = [
+            (beat_off, dur, midi, 0.48)
+            for (beat_off, dur), midi in zip(swing_six_note_slots, midis)
+        ]
+        render_call_response_mp3(
+            filename=filename,
+            bpm=120.0,
+            beats_per_bar=4,
+            audio_loop_bars=4,
+            call_response_bars=1,
+            response_bars=3,
             melody_events_in_call_block=events,
         )
 

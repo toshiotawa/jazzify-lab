@@ -3,7 +3,18 @@ import XCTest
 @testable import Jazzify
 
 final class DefenseCallResponseTests: XCTestCase {
-    private let config = DefenseCallResponseConfig(audioLoopBars: 8, callResponseBars: 1)
+    private let config8x1 = DefenseCallResponseConfig(
+        audioLoopBars: 8,
+        callBars: 1,
+        responseBars: 1,
+        cycleBars: 2
+    )
+    private let config4x1x3 = DefenseCallResponseConfig(
+        audioLoopBars: 4,
+        callBars: 1,
+        responseBars: 3,
+        cycleBars: 4
+    )
     private let barSec = 2.0
     private let beatsPerBar = 4
 
@@ -23,6 +34,7 @@ final class DefenseCallResponseTests: XCTestCase {
             phraseBars: 1,
             audioLoopBars: 8,
             callResponseBars: 1,
+            callResponseResponseBars: nil,
             staffLayout: .treble,
             attackTrigger: .note,
             keyFifths: 0,
@@ -44,13 +56,18 @@ final class DefenseCallResponseTests: XCTestCase {
     }
 
     func testConfigFromStage() {
-        XCTAssertEqual(DefenseCallResponse.config(for: crStage()), config)
+        XCTAssertEqual(DefenseCallResponse.config(for: crStage()), config8x1)
         XCTAssertNil(DefenseCallResponse.config(for: crStage().withAudioLoopBars(7)))
+    }
+
+    func testConfig1c3() {
+        let stage = crStage().withLoopAndResponse(audioLoopBars: 4, responseBars: 3)
+        XCTAssertEqual(DefenseCallResponse.config(for: stage), config4x1x3)
     }
 
     func testBarPhaseCallAndResponse() {
         let call = DefenseCallResponse.resolve(
-            config: config,
+            config: config8x1,
             elapsedFromPhraseStartSec: 0.5,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
@@ -62,7 +79,7 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertFalse(call.judgeActive)
 
         let response = DefenseCallResponse.resolve(
-            config: config,
+            config: config8x1,
             elapsedFromPhraseStartSec: 2.5,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
@@ -74,9 +91,21 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertTrue(response.judgeActive)
     }
 
+    func testLoopIndexOnWrap() {
+        let snap = DefenseCallResponse.resolve(
+            config: config4x1x3,
+            elapsedFromPhraseStartSec: 8,
+            barSec: barSec,
+            beatsPerBar: beatsPerBar,
+            transitionWaitUntilElapsedSec: nil
+        )
+        XCTAssertEqual(snap.loopIndex, 1)
+        XCTAssertEqual(snap.phase, .call)
+    }
+
     func testLeadWindow() {
         let before = DefenseCallResponse.resolve(
-            config: config,
+            config: config8x1,
             elapsedFromPhraseStartSec: 1.969,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
@@ -85,7 +114,7 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertFalse(before.judgeActive)
 
         let atLead = DefenseCallResponse.resolve(
-            config: config,
+            config: config8x1,
             elapsedFromPhraseStartSec: 1.97,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
@@ -96,7 +125,7 @@ final class DefenseCallResponseTests: XCTestCase {
 
     func testTransitionWait() {
         let wait = DefenseCallResponse.resolve(
-            config: config,
+            config: config8x1,
             elapsedFromPhraseStartSec: 5.5,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
@@ -108,7 +137,7 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertFalse(wait.judgeActive)
 
         let after = DefenseCallResponse.resolve(
-            config: config,
+            config: config8x1,
             elapsedFromPhraseStartSec: 8,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
@@ -236,6 +265,40 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertNil(DefenseCallResponse.config(for: stage))
     }
 
+    func testClearTargetMinimumNotes() {
+        let phrase = DefensePhraseDefinition(
+            id: "p",
+            orderIndex: 0,
+            title: "t",
+            audioUrl: "",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "c",
+                    orderIndex: 0,
+                    chordName: "Dm7",
+                    measureNumber: 1,
+                    notes: (0..<6).map { idx in
+                        SurvivalPhraseChordNote(
+                            orderIndex: idx,
+                            pitchMidi: 60 + idx,
+                            pitchClass: idx % 12,
+                            noteName: "C4",
+                            staff: 1,
+                            stepIndex: idx,
+                            staffChordName: nil
+                        )
+                    }
+                )
+            ]
+        )
+        let stage = crStage()
+        XCTAssertEqual(DefenseCallResponseCombat.clearTarget(stage: stage, phrases: [phrase]), 9)
+    }
+
     func testAvatarContainerNamedSpritesNotShadowedByCueNode() {
         let player = EarTrainingBattleStageKit.makeAvatarContainer(
             assetName: DefensePlayerPose.idleAssetNames[0],
@@ -276,6 +339,44 @@ private extension DefenseStageDefinition {
             phraseBars: phraseBars,
             audioLoopBars: bars,
             callResponseBars: callResponseBars,
+            callResponseResponseBars: callResponseResponseBars,
+            staffLayout: staffLayout,
+            attackTrigger: attackTrigger,
+            keyFifths: keyFifths,
+            requiredCompletionCount: requiredCompletionCount,
+            difficultyLevel: difficultyLevel,
+            surviveSeconds: surviveSeconds,
+            playerHp: playerHp,
+            productionStaffHintMode: productionStaffHintMode,
+            productionKeyboardHintMode: productionKeyboardHintMode,
+            playStyle: playStyle,
+            voicingKeyMode: voicingKeyMode,
+            voicingLowestKey: voicingLowestKey,
+            voicingStartKey: voicingStartKey,
+            voicingMinLowestNote: voicingMinLowestNote,
+            playRootOnChordChange: playRootOnChordChange,
+            phrases: phrases,
+            progressionChords: progressionChords
+        )
+    }
+
+    func withLoopAndResponse(audioLoopBars: Int, responseBars: Int) -> DefenseStageDefinition {
+        DefenseStageDefinition(
+            id: id,
+            slug: slug,
+            stageNumber: stageNumber,
+            title: title,
+            titleEn: titleEn,
+            bpm: bpm,
+            beatsPerBar: beatsPerBar,
+            audioRegistrationMode: audioRegistrationMode,
+            audioUrl: audioUrl,
+            melodyAudioUrl: melodyAudioUrl,
+            progressionBars: progressionBars,
+            phraseBars: phraseBars,
+            audioLoopBars: audioLoopBars,
+            callResponseBars: 1,
+            callResponseResponseBars: responseBars,
             staffLayout: staffLayout,
             attackTrigger: attackTrigger,
             keyFifths: keyFifths,

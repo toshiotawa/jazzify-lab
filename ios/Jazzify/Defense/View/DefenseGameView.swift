@@ -485,6 +485,12 @@ struct DefenseGameView: View {
         let timeLabel: String
         if session.practiceMode {
             timeLabel = "∞  ·  KO \(session.runtime.enemiesDefeated)"
+        } else if let progress = session.hud.phraseProgressLabel {
+            if session.hud.wave > 0 {
+                timeLabel = "\(progress)  ·  KO \(session.runtime.enemiesDefeated)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
+            } else {
+                timeLabel = "\(progress)  ·  KO \(session.runtime.enemiesDefeated)"
+            }
         } else if session.hud.wave > 0 {
             timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
         } else {

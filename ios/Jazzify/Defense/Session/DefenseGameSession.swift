@@ -15,6 +15,7 @@ struct DefenseHudState: Equatable {
     var playerHp: Int
     var playerMaxHp: Int
     var remainSec: Int
+    var phraseProgressLabel: String?
     /// 1-based wave number; 0 hides wave UI (practice mode).
     var wave: Int
     var elapsedInt: Int
@@ -41,6 +42,7 @@ final class DefenseGameSession: ObservableObject {
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
+    private let effectiveDifficulty: DefenseDifficultyDefinition
     let practiceMode: Bool
     let tutorialOptions: DefenseTutorialOptions?
     let tutorialConcertMidis: [Int]?
@@ -67,6 +69,7 @@ final class DefenseGameSession: ObservableObject {
     private var resultHandled = false
     private var callResponseTransitionWaitUntilHostSec: Double?
     private var lastCallResponsePhase: DefenseCallResponsePhase?
+    private var lastCallResponseLoopIndex = 0
     private var callResponseConfig: DefenseCallResponseConfig? {
         DefenseCallResponse.config(for: stage)
     }
@@ -92,6 +95,15 @@ final class DefenseGameSession: ObservableObject {
     ) {
         self.stage = stage
         self.difficulty = difficulty
+        if let crConfig = DefenseCallResponse.config(for: stage) {
+            self.effectiveDifficulty = DefenseCallResponseCombat.applyDifficulty(
+                difficulty,
+                cycleBars: crConfig.cycleBars,
+                responseBars: crConfig.responseBars
+            )
+        } else {
+            self.effectiveDifficulty = difficulty
+        }
         self.practiceMode = practiceMode
         self.tutorialOptions = tutorialOptions
         self.tutorialConcertMidis = tutorialConcertMidis
@@ -126,6 +138,7 @@ final class DefenseGameSession: ObservableObject {
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
             remainSec: Int(runtime.surviveSeconds),
+            phraseProgressLabel: nil,
             wave: practiceMode ? 0 : 1,
             elapsedInt: 0,
             result: .playing
@@ -320,16 +333,30 @@ final class DefenseGameSession: ObservableObject {
         lastFrameTime = nil
         callResponseTransitionWaitUntilHostSec = nil
         lastCallResponsePhase = .call
+        lastCallResponseLoopIndex = 0
+
+        let phraseClearTarget: Int
+        if !practiceMode, tutorialOptions == nil, callResponseConfig != nil {
+            phraseClearTarget = DefenseCallResponseCombat.clearTarget(stage: stage, phrases: activePhrases) ?? 0
+        } else {
+            phraseClearTarget = 0
+        }
+        runtime.targetPhraseCompletions = phraseClearTarget
+        runtime.phraseCompletions = 0
+        runtime.callResponseActive = callResponseConfig != nil && tutorialOptions == nil
+
         if callResponseConfig != nil {
             runtime.enemyBehavior = .dance
             runtime.callResponseCue = .listen
             runtime.danceBeatPhase = 0
             if tutorialOptions == nil {
-                runtime.spawnTimerSec = difficulty.spawnIntervalSec * 0.8
+                runtime.spawnTimerSec = effectiveDifficulty.spawnIntervalSec * 0.8
             }
         }
         if tutorialOptions != nil {
-            DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: difficulty)
+            DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: effectiveDifficulty)
+        } else if callResponseConfig != nil {
+            DefenseGameLoop.spawnCallResponseInitialEnemy(runtime: &runtime, difficulty: effectiveDifficulty)
         }
         phase = .playing
         PlayLaunchTiming.end("DefensePlay")
@@ -570,6 +597,11 @@ final class DefenseGameSession: ObservableObject {
         if evaluation.measureCompleted, stage.attackTrigger == .note, !isChordVoicingStage {
             _ = DefenseGameLoop.chargeSp(runtime: &runtime)
         }
+        if evaluation.phraseCompleted, !practiceMode, tutorialOptions == nil {
+            if DefenseGameLoop.recordPhraseCompletion(runtime: &runtime) {
+                return
+            }
+        }
         if !practiceMode, evaluation.pendingSwitch {
             if isChordVoicingStage, let keyState = voicingKeyState {
                 applyVoicingKeyState(DefenseVoicingKeys.advanceKeyState(keyState))
@@ -708,13 +740,17 @@ final class DefenseGameSession: ObservableObject {
             syncCallResponseRuntime(config: crConfig)
         }
 
-        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: dt)
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: effectiveDifficulty, deltaTime: dt)
 
         let elapsedInt = Int(runtime.elapsedSec)
+        let progressLabel: String? = runtime.targetPhraseCompletions > 0 && !practiceMode
+            ? "\(runtime.phraseCompletions)/\(runtime.targetPhraseCompletions)"
+            : nil
         let nextHud = DefenseHudState(
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
             remainSec: max(0, Int((runtime.surviveSeconds - runtime.elapsedSec).rounded(.up))),
+            phraseProgressLabel: progressLabel,
             wave: practiceMode ? 0 : runtime.waveIndex + 1,
             elapsedInt: elapsedInt,
             result: runtime.result
@@ -788,14 +824,14 @@ final class DefenseGameSession: ObservableObject {
         runtime.callResponseCue = snapshot.cue
         runtime.danceBeatPhase = snapshot.danceBeatPhase
 
-        if let lastPhase = lastCallResponsePhase,
-           lastPhase == .response,
-           snapshot.phase == .call,
+        if snapshot.loopIndex > lastCallResponseLoopIndex,
+           !judgeState.pendingSwitch,
            callResponseTransitionWaitUntilHostSec == nil {
             let reset = DefensePhraseJudge.resetProgressForNextCycle(judgeState)
             if reset != judgeState {
                 judgeState = reset
             }
+            lastCallResponseLoopIndex = snapshot.loopIndex
         }
         lastCallResponsePhase = snapshot.phase
     }

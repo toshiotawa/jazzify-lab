@@ -1,6 +1,7 @@
 /**
  * Defense mode combat simulation (pure functions, mutable runtime).
  */
+import { getDefenseWaveIndexFromPhraseProgress } from '@/game/defense/defenseCallResponseCombat';
 import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_DAMAGE_POPUP_SEC,
@@ -83,6 +84,28 @@ const applyResolvedStatsToEnemy = (
   enemy.attackIntervalSec = resolved.attackIntervalSec;
   enemy.attackRangePx = resolved.attackRangePx;
   enemy.knockbackMult = resolved.knockbackMult;
+};
+
+const isPhraseCompletionClearMode = (runtime: DefenseRuntime): boolean => (
+  !runtime.practiceMode
+  && runtime.tutorial == null
+  && runtime.targetPhraseCompletions > 0
+);
+
+const syncPhraseClearWaveState = (
+  runtime: DefenseRuntime,
+  spawnIntervalSec: number,
+): void => {
+  if (runtime.practiceMode) return;
+  const nextWaveIndex = getDefenseWaveIndexFromPhraseProgress(
+    runtime.phraseCompletions,
+    runtime.targetPhraseCompletions,
+  );
+  if (nextWaveIndex === runtime.waveIndex) return;
+  runtime.waveIndex = nextWaveIndex;
+  runtime.waveSpawnCount = 0;
+  runtime.waveStartedAt = runtime.elapsedSec;
+  runtime.spawnTimerSec = spawnIntervalSec;
 };
 
 const syncWaveState = (
@@ -230,6 +253,54 @@ const getEffectiveMaxEnemies = (
 
 const TUTORIAL_INITIAL_ENEMY_X = [420, 560] as const;
 
+export const DEFENSE_CALL_RESPONSE_INITIAL_ENEMY_X = 640;
+
+const activateSpawnedEnemy = (
+  runtime: DefenseRuntime,
+  slot: DefenseEnemy,
+  enemyType: DefenseEnemyType,
+  spawnX: number,
+  difficulty: DefenseDifficulty,
+): void => {
+  slot.active = true;
+  slot.x = spawnX;
+  slot.y = getDefenseEnemyCenterY(enemyType);
+  slot.knockbackVx = 0;
+  slot.lastAttackAt = 0;
+  slot.moving = false;
+  slot.attackHitPending = false;
+  slot.hitFlashAt = DEFENSE_NO_HIT_FLASH;
+  applyResolvedStatsToEnemy(slot, enemyType, difficulty, runtime);
+  runtime.nextEnemyIndex += 1;
+  if (!runtime.practiceMode) {
+    runtime.waveSpawnCount += 1;
+  }
+  runtime.activeEnemyCount += 1;
+};
+
+/** One enemy on field when call-and-response performance starts (non-tutorial). */
+export const spawnCallResponseInitialEnemy = (
+  runtime: DefenseRuntime,
+  difficulty: DefenseDifficulty,
+): void => {
+  if (!runtime.callResponseActive || runtime.tutorial != null) return;
+  if (runtime.activeEnemyCount > 0) return;
+
+  const slot = findInactiveEnemySlot(runtime);
+  if (!slot) return;
+
+  const cumulative = isWaveScaling(runtime) && !runtime.practiceMode;
+  const waveIndex = runtime.practiceMode ? 0 : runtime.waveIndex;
+  const enemyType = pickDefenseWaveEnemyType(waveIndex, 0, cumulative);
+  activateSpawnedEnemy(
+    runtime,
+    slot,
+    enemyType,
+    DEFENSE_CALL_RESPONSE_INITIAL_ENEMY_X,
+    difficulty,
+  );
+};
+
 /** Place visible enemies at start for tutorial (no attacks). */
 export const spawnTutorialInitialEnemies = (
   runtime: DefenseRuntime,
@@ -265,13 +336,26 @@ export const spawnEnemyIfDue = (
   if (runtime.result !== 'playing') return;
 
   const spawnIntervalSec = getSpawnIntervalSec(runtime, difficulty);
-  syncWaveState(runtime, spawnIntervalSec);
+  if (isPhraseCompletionClearMode(runtime)) {
+    syncPhraseClearWaveState(runtime, spawnIntervalSec);
+  } else {
+    syncWaveState(runtime, spawnIntervalSec);
+  }
+
+  if (runtime.enemyBehavior !== 'approach') {
+    return;
+  }
 
   if (runtime.activeEnemyCount >= getEffectiveMaxEnemies(runtime, difficulty)) return;
 
-  runtime.spawnTimerSec += dt;
-  if (runtime.spawnTimerSec < spawnIntervalSec) return;
-  runtime.spawnTimerSec = 0;
+  const instantSpawn = runtime.callResponseActive && runtime.activeEnemyCount === 0;
+  if (!instantSpawn) {
+    runtime.spawnTimerSec += dt;
+    if (runtime.spawnTimerSec < spawnIntervalSec) return;
+    runtime.spawnTimerSec = 0;
+  } else {
+    runtime.spawnTimerSec = 0;
+  }
 
   const slot = findInactiveEnemySlot(runtime);
   if (!slot) return;
@@ -284,21 +368,17 @@ export const spawnEnemyIfDue = (
     cumulative,
   );
 
-  slot.active = true;
-  slot.x = DEFENSE_SPAWN_X;
-  slot.y = getDefenseEnemyCenterY(enemyType);
-  slot.knockbackVx = 0;
-  slot.lastAttackAt = 0;
-  slot.moving = false;
-  slot.attackHitPending = false;
-  slot.hitFlashAt = DEFENSE_NO_HIT_FLASH;
-  applyResolvedStatsToEnemy(slot, enemyType, difficulty, runtime);
+  activateSpawnedEnemy(runtime, slot, enemyType, DEFENSE_SPAWN_X, difficulty);
+};
 
-  runtime.nextEnemyIndex += 1;
-  if (!runtime.practiceMode) {
-    runtime.waveSpawnCount += 1;
+export const recordDefensePhraseCompletion = (runtime: DefenseRuntime): boolean => {
+  if (!isPhraseCompletionClearMode(runtime)) return false;
+  runtime.phraseCompletions += 1;
+  if (runtime.phraseCompletions >= runtime.targetPhraseCompletions) {
+    runtime.result = 'clear';
+    return true;
   }
-  runtime.activeEnemyCount += 1;
+  return false;
 };
 
 export const updateDefenseEnemies = (
@@ -427,6 +507,7 @@ export const performDefenseSlash = (
 };
 
 const isTimedClearEnabled = (runtime: DefenseRuntime): boolean => {
+  if (isPhraseCompletionClearMode(runtime)) return false;
   if (runtime.practiceMode) return false;
   if (runtime.tutorial) return runtime.tutorial.timedClearEnabled;
   return true;

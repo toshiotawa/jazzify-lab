@@ -5,23 +5,67 @@ import {
   resolveDefenseCallResponseState,
 } from '@/game/defense/defenseCallResponse';
 
-const config8x1 = { audioLoopBars: 8, callResponseBars: 1 } as const;
-const config8x2 = { audioLoopBars: 8, callResponseBars: 2 } as const;
+const config8x1 = {
+  audioLoopBars: 8,
+  callBars: 1,
+  responseBars: 1,
+  cycleBars: 2,
+} as const;
+const config4x1x3 = {
+  audioLoopBars: 4,
+  callBars: 1,
+  responseBars: 3,
+  cycleBars: 4,
+} as const;
+const config8x2 = {
+  audioLoopBars: 8,
+  callBars: 2,
+  responseBars: 2,
+  cycleBars: 4,
+} as const;
 const barSec = 2;
 const beatsPerBar = 4;
 
 describe('getDefenseCallResponseConfig', () => {
   it('accepts valid loop/call-response sizing', () => {
-    expect(getDefenseCallResponseConfig({ audioLoopBars: 8, callResponseBars: 1 })).toEqual(config8x1);
-    expect(getDefenseCallResponseConfig({ audioLoopBars: 8, callResponseBars: 2 })).toEqual(config8x2);
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: 8,
+      callResponseBars: 1,
+      callResponseResponseBars: null,
+    })).toEqual(config8x1);
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: 4,
+      callResponseBars: 1,
+      callResponseResponseBars: 3,
+    })).toEqual(config4x1x3);
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: 8,
+      callResponseBars: 2,
+      callResponseResponseBars: null,
+    })).toEqual(config8x2);
   });
 
   it('rejects invalid values', () => {
-    expect(getDefenseCallResponseConfig({ audioLoopBars: null, callResponseBars: 1 })).toBeNull();
-    expect(getDefenseCallResponseConfig({ audioLoopBars: 8, callResponseBars: null })).toBeNull();
-    expect(getDefenseCallResponseConfig({ audioLoopBars: 7, callResponseBars: 1 })).toBeNull();
-    expect(getDefenseCallResponseConfig({ audioLoopBars: 8, callResponseBars: 0 })).toBeNull();
-    expect(getDefenseCallResponseConfig({ audioLoopBars: 6, callResponseBars: 2 })).toBeNull();
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: null,
+      callResponseBars: 1,
+      callResponseResponseBars: null,
+    })).toBeNull();
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: 8,
+      callResponseBars: null,
+      callResponseResponseBars: null,
+    })).toBeNull();
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: 7,
+      callResponseBars: 1,
+      callResponseResponseBars: null,
+    })).toBeNull();
+    expect(getDefenseCallResponseConfig({
+      audioLoopBars: 5,
+      callResponseBars: 1,
+      callResponseResponseBars: 3,
+    })).toBeNull();
   });
 });
 
@@ -39,7 +83,7 @@ describe('resolveDefenseCallResponseState', () => {
     expect(snap.judgeActive).toBe(true);
   });
 
-  it('alternates call and response bars in an 8-bar loop', () => {
+  it('alternates call and response bars in an 8-bar loop (1:1)', () => {
     const call = resolveDefenseCallResponseState({
       config: config8x1,
       elapsedFromPhraseStartSec: 0.5,
@@ -64,6 +108,40 @@ describe('resolveDefenseCallResponseState', () => {
     expect(response.enemyBehavior).toBe('approach');
   });
 
+  it('uses 1-bar call and 3-bar response in a 4-bar loop', () => {
+    const call = resolveDefenseCallResponseState({
+      config: config4x1x3,
+      elapsedFromPhraseStartSec: 0.5,
+      barSec,
+      beatsPerBar,
+      transitionWaitUntilElapsedSec: null,
+    });
+    expect(call.phase).toBe('call');
+    expect(call.barIndexInLoop).toBe(0);
+    expect(call.loopIndex).toBe(0);
+
+    const responseMid = resolveDefenseCallResponseState({
+      config: config4x1x3,
+      elapsedFromPhraseStartSec: 4.5,
+      barSec,
+      beatsPerBar,
+      transitionWaitUntilElapsedSec: null,
+    });
+    expect(responseMid.phase).toBe('response');
+    expect(responseMid.barIndexInLoop).toBe(2);
+
+    const wrap = resolveDefenseCallResponseState({
+      config: config4x1x3,
+      elapsedFromPhraseStartSec: 8,
+      barSec,
+      beatsPerBar,
+      transitionWaitUntilElapsedSec: null,
+    });
+    expect(wrap.loopIndex).toBe(1);
+    expect(wrap.phase).toBe('call');
+    expect(wrap.barIndexInLoop).toBe(0);
+  });
+
   it('wraps bar index within audioLoopBars', () => {
     const snap = resolveDefenseCallResponseState({
       config: config8x1,
@@ -74,6 +152,7 @@ describe('resolveDefenseCallResponseState', () => {
     });
     expect(snap.barIndexInLoop).toBe(0);
     expect(snap.phase).toBe('call');
+    expect(snap.loopIndex).toBe(1);
   });
 
   it('enables judge 30ms before response for 1-bar call', () => {

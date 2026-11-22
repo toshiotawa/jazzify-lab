@@ -394,6 +394,10 @@ const drawDefenseHud = (
     ctx.fillStyle = '#67e8f9';
     ctx.font = `900 30px ${HUD_FONT}`;
     ctx.fillText('PRACTICE', width / 2, 18);
+  } else if (hud.phraseProgressLabel) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 30px ${HUD_FONT}`;
+    ctx.fillText(hud.phraseProgressLabel, width / 2, 18);
   } else {
     ctx.fillStyle = '#ffffff';
     ctx.font = `900 30px ${HUD_FONT}`;
