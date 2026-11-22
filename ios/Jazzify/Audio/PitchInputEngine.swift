@@ -667,6 +667,10 @@ final class PitchInputEngine: @unchecked Sendable {
         capturePipeline = pipeline
         isRunning = true
         activeTapSampleRate = connectFormat.sampleRate
+        AudioRateDiagnostics.logPitchInputStart(
+            inputNode: inputNode,
+            connectSampleRate: connectFormat.sampleRate
+        )
         VoiceSpeakerBleedCoordinator.shared.setEffectiveOutputLevel(
             EarTrainingBattleVolumePreferences.loadPhraseVolume()
         )

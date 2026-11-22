@@ -333,14 +333,27 @@ final class AppAudioSession {
         switch reason {
         case .oldDeviceUnavailable, .newDeviceAvailable:
             VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
+            AudioRateDiagnostics.logRouteChange(
+                reason: reason,
+                isCaptured: UIScreen.main.isCaptured,
+                recordingEnabled: recordingEnabled,
+                suppressed: false
+            )
             scheduleReconfigure(alwaysNotify: true)
         case .categoryChange, .routeConfigurationChange, .override:
-            if AudioOutputFormatResolver.shouldSuppressRouteChange(
+            let suppressed = AudioOutputFormatResolver.shouldSuppressRouteChange(
                 reason: reason,
                 withinSuppressionWindow: isWithinAutomaticReconfigureSuppression,
                 currentSampleRate: AVAudioSession.sharedInstance().sampleRate,
                 lastAppliedSampleRate: lastAppliedSampleRate
-            ) {
+            )
+            AudioRateDiagnostics.logRouteChange(
+                reason: reason,
+                isCaptured: UIScreen.main.isCaptured,
+                recordingEnabled: recordingEnabled,
+                suppressed: suppressed
+            )
+            if suppressed {
                 return
             }
             scheduleReconfigure()

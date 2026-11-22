@@ -163,6 +163,13 @@ enum AudioRateDiagnostics {
         category: "AudioRate"
     )
 
+    private static func emit(_ message: String) {
+        logger.notice("\(message, privacy: .public)")
+        #if DEBUG
+        print("[AudioRate] \(message)")
+        #endif
+    }
+
     static func logSessionConfigure(
         session: AVAudioSession = .sharedInstance(),
         isCaptured: Bool,
@@ -171,13 +178,42 @@ enum AudioRateDiagnostics {
         targetIOBufferDuration: TimeInterval,
         didChange: Bool
     ) {
+        let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
         let outputs = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
         let category = session.category.rawValue
         let mode = session.mode.rawValue
         let actualRate = session.sampleRate
         let actualBuffer = session.ioBufferDuration
-        logger.notice(
-            "sessionConfigure cat=\(category, privacy: .public) mode=\(mode, privacy: .public) captured=\(isCaptured, privacy: .public) rec=\(recordingEnabled, privacy: .public) prefRate=\(preferredSampleRate, privacy: .public) actualRate=\(actualRate, privacy: .public) targetBuf=\(targetIOBufferDuration, privacy: .public) actualBuf=\(actualBuffer, privacy: .public) outputs=\(outputs, privacy: .public) didChange=\(didChange, privacy: .public)"
+        emit(
+            "sessionConfigure cat=\(category) mode=\(mode) captured=\(isCaptured) rec=\(recordingEnabled) prefRate=\(preferredSampleRate) actualRate=\(actualRate) targetBuf=\(targetIOBufferDuration) actualBuf=\(actualBuffer) inputs=[\(inputs)] outputs=[\(outputs)] didChange=\(didChange)"
+        )
+    }
+
+    static func logRouteChange(
+        reason: AVAudioSession.RouteChangeReason,
+        isCaptured: Bool,
+        recordingEnabled: Bool,
+        suppressed: Bool,
+        session: AVAudioSession = .sharedInstance()
+    ) {
+        let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
+        let outputs = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
+        emit(
+            "routeChange reason=\(reason.rawValue) captured=\(isCaptured) rec=\(recordingEnabled) sessionRate=\(session.sampleRate) inputs=[\(inputs)] outputs=[\(outputs)] suppressed=\(suppressed)"
+        )
+    }
+
+    static func logPitchInputStart(
+        inputNode: AVAudioInputNode,
+        connectSampleRate: Double,
+        session: AVAudioSession = .sharedInstance()
+    ) {
+        let hwIn = inputNode.inputFormat(forBus: 0).sampleRate
+        let nodeOut = inputNode.outputFormat(forBus: 0).sampleRate
+        let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
+        let outputs = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
+        emit(
+            "pitchInputStart hwIn=\(hwIn) nodeOut=\(nodeOut) connectRate=\(connectSampleRate) sessionRate=\(session.sampleRate) inputs=[\(inputs)] outputs=[\(outputs)]"
         )
     }
 
@@ -195,9 +231,10 @@ enum AudioRateDiagnostics {
         let sessionRate = session.sampleRate
         let bufRate = bufferSampleRate ?? -1
         let running = engine.isRunning
+        let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
         let outputs = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
-        logger.notice(
-            "engineStart tag=\(tag, privacy: .public) running=\(running, privacy: .public) deckRate=\(deckSampleRate, privacy: .public) bufRate=\(bufRate, privacy: .public) outNodeOut=\(outRate, privacy: .public) outNodeIn=\(outInRate, privacy: .public) mainMixer=\(mixerRate, privacy: .public) sessionRate=\(sessionRate, privacy: .public) retry=\(didRetry, privacy: .public) outputs=\(outputs, privacy: .public)"
+        emit(
+            "engineStart tag=\(tag) running=\(running) deckRate=\(deckSampleRate) bufRate=\(bufRate) outNodeOut=\(outRate) outNodeIn=\(outInRate) mainMixer=\(mixerRate) sessionRate=\(sessionRate) retry=\(didRetry) inputs=[\(inputs)] outputs=[\(outputs)]"
         )
     }
 }
