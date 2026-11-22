@@ -6,8 +6,8 @@ import UIKit
 final class DefenseSeparateTracksAudio: @unchecked Sendable {
     static let shared = DefenseSeparateTracksAudio()
 
-    private let engine = AVAudioEngine()
-    private let masterMixer = AVAudioMixerNode()
+    private var engine = AVAudioEngine()
+    private var masterMixer = AVAudioMixerNode()
     private var sourceNode: AVAudioSourceNode?
     private var sourcePlaybackFormat: AVAudioFormat?
     private var mixerState: DefenseSeparateTracksMixerState?
@@ -46,6 +46,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var needsEngineResumeOnActive = false
     /// `stop` / `rebuildGraph` 中の同期 ConfigurationChange で旧グラフを再startしない。
     private var isMutatingGraph = false
+    private var pendingConfigurationChange = false
+    private var pendingConfigurationWorkItem: DispatchWorkItem?
 
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
     private var voiceInputDucking = false
@@ -67,6 +69,11 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         await MainActor.run {
             self.isStopping = true
             self.needsEngineResumeOnActive = false
+            self.reconfigureTask?.cancel()
+            self.reconfigureTask = nil
+            self.pendingConfigurationWorkItem?.cancel()
+            self.pendingConfigurationWorkItem = nil
+            self.pendingConfigurationChange = false
             self.isMutatingGraph = true
             defer { self.isMutatingGraph = false }
             self.detachPlaybackGraph(detachMasterMixer: true)
@@ -165,6 +172,11 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             guard let self else { return }
             self.isStopping = true
             self.needsEngineResumeOnActive = false
+            self.reconfigureTask?.cancel()
+            self.reconfigureTask = nil
+            self.pendingConfigurationWorkItem?.cancel()
+            self.pendingConfigurationWorkItem = nil
+            self.pendingConfigurationChange = false
             self.isMutatingGraph = true
             defer { self.isMutatingGraph = false }
             self.sessionGeneration &+= 1
@@ -213,13 +225,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
     private func registerLifecycleObservers() {
         let center = NotificationCenter.default
-        engineConfigObserver = center.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleEngineConfigurationChange()
-        }
+        rebindEngineConfigObserver()
         appAudioSessionObserver = center.addObserver(
             forName: AppAudioSession.didReconfigureNotification,
             object: nil,
@@ -245,32 +251,79 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         }
     }
 
+    private func rebindEngineConfigObserver() {
+        let center = NotificationCenter.default
+        if let existing = engineConfigObserver {
+            center.removeObserver(existing)
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
     private func handleEngineConfigurationChange() {
-        guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
+        guard !isStopping, mixerState != nil else { return }
+        if isMutatingGraph {
+            pendingConfigurationChange = true
+            return
+        }
         startReconfigureTask()
     }
 
     private func handleSharedAudioSessionReconfigure() {
-        guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
+        guard !isStopping, mixerState != nil else { return }
+        if isMutatingGraph {
+            pendingConfigurationChange = true
+            return
+        }
         startReconfigureTask()
     }
 
-    private func startReconfigureTask() {
+    private func schedulePendingConfigurationCheck() {
+        pendingConfigurationWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, !self.isStopping, !self.isMutatingGraph, let state = self.mixerState else { return }
+            let mismatch = AudioOutputFormatResolver.postStartMismatchedRate(
+                engine: self.engine,
+                expectedSampleRate: state.activeSet.grid.sampleRate
+            ) != nil
+            if !self.engine.isRunning || mismatch {
+                self.startReconfigureTask()
+            }
+        }
+        pendingConfigurationWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
+    }
+
+    private func startReconfigureTask(
+        forcedSampleRate: Double? = nil,
+        allowPostStartRetry: Bool = true
+    ) {
         reconfigureTask?.cancel()
         reconfigureTask = Task { @MainActor in
-            await self.reconfigureAfterHardwareOrSessionChange()
+            await self.reconfigureAfterHardwareOrSessionChange(
+                forcedSampleRate: forcedSampleRate,
+                allowPostStartRetry: allowPostStartRetry
+            )
         }
     }
 
     @MainActor
-    private func reconfigureAfterHardwareOrSessionChange() async {
+    private func reconfigureAfterHardwareOrSessionChange(
+        forcedSampleRate: Double? = nil,
+        allowPostStartRetry: Bool = true
+    ) async {
         guard !isStopping, !isMutatingGraph, let state = mixerState else { return }
         let generation = sessionGeneration
 
         if engine.isRunning {
             engine.stop()
         }
-        let hardwareRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+        let hardwareRate = forcedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: engine)
         let preparedRate = state.activeSet.grid.sampleRate
         let rateMismatch = !AudioOutputFormatResolver.sampleRatesMatch(hardwareRate, preparedRate)
 
@@ -309,14 +362,28 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
               generation == sessionGeneration,
               mixerState === state else { return }
         let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
-        rebuildGraph(sourceFormat: format)
+        rebuildGraph(sourceFormat: format, allowPostStartRetry: allowPostStartRetry)
     }
 
-    private func rebuildGraph(sourceFormat: AVAudioFormat) {
+    private func rebuildGraph(sourceFormat: AVAudioFormat, allowPostStartRetry: Bool = true) {
         isMutatingGraph = true
-        defer { isMutatingGraph = false }
+        pendingConfigurationChange = false
+        var deferredForcedRetryRate: Double?
+        defer {
+            isMutatingGraph = false
+            if let retryRate = deferredForcedRetryRate {
+                startReconfigureTask(forcedSampleRate: retryRate, allowPostStartRetry: false)
+            } else if pendingConfigurationChange {
+                pendingConfigurationChange = false
+                schedulePendingConfigurationCheck()
+            }
+        }
 
-        detachPlaybackGraph(detachMasterMixer: false)
+        detachPlaybackGraph(detachMasterMixer: true)
+        engine.reset()
+        engine = AVAudioEngine()
+        masterMixer = AVAudioMixerNode()
+        rebindEngineConfigObserver()
 
         let node = AVAudioSourceNode(format: sourceFormat) { [weak self] _, timestamp, frameCount, audioBufferList -> OSStatus in
             guard let self else { return noErr }
@@ -328,11 +395,10 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         }
         sourceNode = node
         engine.attach(node)
-        if !engine.attachedNodes.contains(masterMixer) {
-            engine.attach(masterMixer)
-        }
+        engine.attach(masterMixer)
         engine.connect(node, to: masterMixer, format: sourceFormat)
-        engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(masterMixer, to: engine.mainMixerNode, format: sourceFormat)
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         sourcePlaybackFormat = sourceFormat
         applyMasterVolume()
         guard AppAudioSession.shared.canStartAudioEngine else {
@@ -349,6 +415,28 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             }
             return
         }
+        if allowPostStartRetry,
+           let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+               engine: engine,
+               expectedSampleRate: sourceFormat.sampleRate
+           ) {
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseSeparateTracks.start.mismatch",
+                engine: engine,
+                deckSampleRate: sourceFormat.sampleRate,
+                bufferSampleRate: sourceFormat.sampleRate,
+                didRetry: false
+            )
+            deferredForcedRetryRate = actualRate
+            return
+        }
+        AudioRateDiagnostics.logEngineStart(
+            tag: "DefenseSeparateTracks.start",
+            engine: engine,
+            deckSampleRate: sourceFormat.sampleRate,
+            bufferSampleRate: sourceFormat.sampleRate,
+            didRetry: !allowPostStartRetry
+        )
         presentationLatency = sourceNode?.outputPresentationLatency ?? 0
     }
 
@@ -408,6 +496,30 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             if let format = sourcePlaybackFormat {
                 rebuildGraph(sourceFormat: format)
             }
+            return
+        }
+        if let expectedRate = sourcePlaybackFormat?.sampleRate {
+            if let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+                engine: engine,
+                expectedSampleRate: expectedRate
+            ) {
+                AudioRateDiagnostics.logEngineStart(
+                    tag: "DefenseSeparateTracks.restart.mismatch",
+                    engine: engine,
+                    deckSampleRate: expectedRate,
+                    bufferSampleRate: expectedRate,
+                    didRetry: false
+                )
+                startReconfigureTask(forcedSampleRate: actualRate, allowPostStartRetry: false)
+                return
+            }
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseSeparateTracks.restart",
+                engine: engine,
+                deckSampleRate: expectedRate,
+                bufferSampleRate: expectedRate,
+                didRetry: false
+            )
         }
         presentationLatency = sourceNode?.outputPresentationLatency ?? 0
     }

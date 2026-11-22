@@ -54,11 +54,37 @@ final class SurvivalGameAudio {
 
     // MARK: - Stored
 
-    private let engine = AVAudioEngine()
-    /// SFX (攻撃・被弾・ステージクリア等) 用サンプラー。`sfxMixer` 経由で音量制御される。
-    private let sampler = AVAudioUnitSampler()
-    /// 鍵盤サステイン用: 同梱 SF2 のアコースティックピアノ（`pianoMixer` 経由、低遅延）
-    private let keyboardGrandSampler = AVAudioUnitSampler()
+    private final class AudioGraph {
+        let engine = AVAudioEngine()
+        let sampler = AVAudioUnitSampler()
+        let keyboardGrandSampler = AVAudioUnitSampler()
+        let sfxMixer = AVAudioMixerNode()
+        let pianoMixer = AVAudioMixerNode()
+        let rootBassMixer = AVAudioMixerNode()
+        let rootBassEQ = AVAudioUnitEQ(numberOfBands: 1)
+        let limiter: AVAudioUnitEffect
+        let rootBassSampler = AVAudioUnitSampler()
+
+        init() {
+            let description = AudioComponentDescription(
+                componentType: kAudioUnitType_Effect,
+                componentSubType: kAudioUnitSubType_PeakLimiter,
+                componentManufacturer: kAudioUnitManufacturer_Apple,
+                componentFlags: 0,
+                componentFlagsMask: 0
+            )
+            limiter = AVAudioUnitEffect(audioComponentDescription: description)
+        }
+    }
+
+    private let graphLock = NSLock()
+    private var _graph = AudioGraph()
+    private var graph: AudioGraph {
+        graphLock.lock()
+        defer { graphLock.unlock() }
+        return _graph
+    }
+
     private var keyboardGMReady = false
     private var keyboardGMLoadAttempted = false
     /// 実際にロードできたピアノ preset（Stereo 失敗時は Mono）。
@@ -69,29 +95,8 @@ final class SurvivalGameAudio {
     private var pianoSoundBankURL: URL?
     /// 正解ルート用 FingerBass SF2 の Bundle URL（初回解決後キャッシュ）
     private var rootBassSoundBankURL: URL?
-    /// SFX 音量を独立制御するためのミキサー (main mixer の手前に挟む)。
-    private let sfxMixer = AVAudioMixerNode()
-    /// ピアノ音量を独立制御するためのミキサー (main mixer の手前に挟む)。
-    private let pianoMixer = AVAudioMixerNode()
-    private let rootBassMixer = AVAudioMixerNode()
-    /// 内蔵スピーカー向け: 基音は変えず SF2 倍音のみ high-shelf で持ち上げる。
-    private let rootBassEQ = AVAudioUnitEQ(numberOfBands: 1)
     /// `routeChangeNotification` で更新。再生ホットパスでは参照のみ。
     private var isBuiltInSpeakerRoute = true
-    /// SFX 専用ピークリミッター。AUPeakLimiter のルックアヘッドで数 ms の遅延が生じるため、
-    /// 鍵盤 / 正解ルートは mainMixer へ直結し、タイミング重視の SE のみ通す。
-    private let limiter: AVAudioUnitEffect = {
-        let description = AudioComponentDescription(
-            componentType: kAudioUnitType_Effect,
-            componentSubType: kAudioUnitSubType_PeakLimiter,
-            componentManufacturer: kAudioUnitManufacturer_Apple,
-            componentFlags: 0,
-            componentFlagsMask: 0
-        )
-        return AVAudioUnitEffect(audioComponentDescription: description)
-    }()
-    /// 正解ルート用: FingerBass SF2（メイン鍵盤とは別系統）
-    private let rootBassSampler = AVAudioUnitSampler()
     private var rootBassGMReady = false
     private var rootBassGMLoadAttempted = false
     /// 遅延 `stopNote` の世代。`stop()` や新規ワンショットで進め、古いタイマーを無効化する。
@@ -99,6 +104,8 @@ final class SurvivalGameAudio {
     private var isEngineStarted = false
     private var lastAppliedSampleRate: Double?
     private var isReconfiguringGraph = false
+    private var pendingConfigurationChange = false
+    private var pendingConfigurationWorkItem: DispatchWorkItem?
     /// `stop()` 中 / 停止後のフラグ。MIDI コールバック (背景スレッド) から
     /// `pianoNoteOnRealtime` が遅延で飛んできた際に停止済みエンジン操作を
     /// 完全に遮断するための二重ガード。
@@ -134,42 +141,49 @@ final class SurvivalGameAudio {
     private var sustainPedalSubscription: MIDISubscription?
 
     private init() {
-        connectGraphNodes()
+        connectGraphNodes(on: _graph, forcedSampleRate: nil)
         bgmPlayer.actionAtItemEnd = .advance
         registerLifecycleObservers()
     }
 
-    private func connectGraphNodes() {
+    private func connectGraphNodes(on targetGraph: AudioGraph, forcedSampleRate: Double?) {
+        let engine = targetGraph.engine
         let attachIfNeeded: (AVAudioNode) -> Void = { node in
-            if !self.engine.attachedNodes.contains(node) {
-                self.engine.attach(node)
+            if !engine.attachedNodes.contains(node) {
+                engine.attach(node)
             }
         }
-        attachIfNeeded(sampler)
-        attachIfNeeded(sfxMixer)
-        attachIfNeeded(pianoMixer)
-        attachIfNeeded(rootBassSampler)
-        attachIfNeeded(keyboardGrandSampler)
-        attachIfNeeded(rootBassEQ)
-        attachIfNeeded(rootBassMixer)
-        attachIfNeeded(limiter)
+        attachIfNeeded(targetGraph.sampler)
+        attachIfNeeded(targetGraph.sfxMixer)
+        attachIfNeeded(targetGraph.pianoMixer)
+        attachIfNeeded(targetGraph.rootBassSampler)
+        attachIfNeeded(targetGraph.keyboardGrandSampler)
+        attachIfNeeded(targetGraph.rootBassEQ)
+        attachIfNeeded(targetGraph.rootBassMixer)
+        attachIfNeeded(targetGraph.limiter)
 
-        engine.disconnectNodeInput(sfxMixer)
-        engine.disconnectNodeInput(limiter)
-        engine.disconnectNodeInput(pianoMixer)
-        engine.disconnectNodeInput(rootBassEQ)
-        engine.disconnectNodeInput(rootBassMixer)
+        engine.disconnectNodeInput(targetGraph.sfxMixer)
+        engine.disconnectNodeInput(targetGraph.limiter)
+        engine.disconnectNodeInput(targetGraph.pianoMixer)
+        engine.disconnectNodeInput(targetGraph.rootBassEQ)
+        engine.disconnectNodeInput(targetGraph.rootBassMixer)
 
-        engine.connect(sampler, to: sfxMixer, format: nil)
-        engine.connect(sfxMixer, to: limiter, format: nil)
-        engine.connect(limiter, to: engine.mainMixerNode, format: nil)
-        engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
-        engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
-        engine.connect(rootBassSampler, to: rootBassEQ, format: nil)
-        engine.connect(rootBassEQ, to: rootBassMixer, format: nil)
-        engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
-        configureRootBassEQ()
-        configurePeakLimiter(limiter)
+        let targetRate = forcedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+        let outputFormat = AudioOutputFormatResolver.stereoFormat(sampleRate: targetRate)
+
+        engine.connect(targetGraph.sampler, to: targetGraph.sfxMixer, format: outputFormat)
+        engine.connect(targetGraph.sfxMixer, to: targetGraph.limiter, format: outputFormat)
+        engine.connect(targetGraph.limiter, to: engine.mainMixerNode, format: outputFormat)
+        engine.connect(targetGraph.keyboardGrandSampler, to: targetGraph.pianoMixer, format: outputFormat)
+        engine.connect(targetGraph.pianoMixer, to: engine.mainMixerNode, format: outputFormat)
+        engine.connect(targetGraph.rootBassSampler, to: targetGraph.rootBassEQ, format: outputFormat)
+        engine.connect(targetGraph.rootBassEQ, to: targetGraph.rootBassMixer, format: outputFormat)
+        engine.connect(targetGraph.rootBassMixer, to: engine.mainMixerNode, format: outputFormat)
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
+
+        lastAppliedSampleRate = outputFormat.sampleRate
+        configureRootBassEQ(on: targetGraph)
+        configurePeakLimiter(targetGraph.limiter)
     }
 
     // MARK: - Public API
@@ -198,6 +212,9 @@ final class SurvivalGameAudio {
         // MIDI コールバック (背景スレッド) がこの直後に `pianoNoteOnRealtime` を呼んでも
         // `isStopping` / `isEngineStarted` で早期 return する。
         isStopping = true
+        pendingConfigurationWorkItem?.cancel()
+        pendingConfigurationWorkItem = nil
+        pendingConfigurationChange = false
         unsubscribeSustainPedal()
         stopBgm()
         stopAllKeyboardNotes()
@@ -206,8 +223,9 @@ final class SurvivalGameAudio {
         // 遅延コールバック (arpeggio / stopNote) がまだキューに残っていても、
         // `isEngineStarted == false` により `sampler` 操作をスキップさせる。
         isEngineStarted = false
-        if engine.isRunning {
-            engine.stop()
+        let currentGraph = graph
+        if currentGraph.engine.isRunning {
+            currentGraph.engine.stop()
         }
     }
 
@@ -341,13 +359,16 @@ final class SurvivalGameAudio {
             return
         }
         startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
+        let currentGraph = graph
+        guard !isReconfiguringGraph, isEngineStarted, currentGraph.engine.isRunning else { return }
         let clamped = UInt8(max(0, min(127, note)))
         let vel = UInt8(max(1, min(127, velocity)))
-        sampler.startNote(clamped, withVelocity: vel, onChannel: 0)
+        currentGraph.sampler.startNote(clamped, withVelocity: vel, onChannel: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
-            guard let self, self.isEngineStarted, self.engine.isRunning else { return }
-            self.sampler.stopNote(clamped, onChannel: 0)
+            guard let self, self.isEngineStarted else { return }
+            let g = self.graph
+            guard g === currentGraph, g.engine.isRunning else { return }
+            g.sampler.stopNote(clamped, onChannel: 0)
         }
     }
 
@@ -361,12 +382,13 @@ final class SurvivalGameAudio {
     func pianoChordOn(midis: [Int], velocity: Int = 100) {
         guard !isStopping else { return }
         preparePianoIfNeeded()
-        guard isEngineStarted, engine.isRunning, keyboardGMReady else { return }
+        let currentGraph = graph
+        guard !isReconfiguringGraph, isEngineStarted, currentGraph.engine.isRunning, keyboardGMReady else { return }
         var seen = Set<Int>()
         for midi in midis {
             let clamped = max(0, min(127, midi))
             guard seen.insert(clamped).inserted else { continue }
-            performKeyboardNoteOn(midi: clamped, velocity: velocity)
+            performKeyboardNoteOn(on: currentGraph, midi: clamped, velocity: velocity)
         }
     }
 
@@ -378,15 +400,19 @@ final class SurvivalGameAudio {
     /// 鍵盤の低遅延経路 (任意スレッドから呼び出し可)。内蔵 GM の `startNote` を同期で叩く。
     /// - 前提: ゲーム開始時の `start()` にて engine 起動済み。
     func pianoNoteOnRealtime(midi: Int, velocity: Int) {
-        guard !isStopping, isEngineStarted, engine.isRunning else { return }
+        guard !isStopping, !isReconfiguringGraph, isEngineStarted else { return }
+        let currentGraph = graph
+        guard currentGraph.engine.isRunning else { return }
         prepareKeyboardGMBankIfNeeded()
         guard keyboardGMReady else { return }
-        performKeyboardNoteOn(midi: midi, velocity: velocity)
+        performKeyboardNoteOn(on: currentGraph, midi: midi, velocity: velocity)
     }
 
     func pianoNoteOffRealtime(midi: Int) {
-        guard !isStopping, isEngineStarted, engine.isRunning, keyboardGMReady else { return }
-        performKeyboardNoteOff(midi: midi)
+        guard !isStopping, !isReconfiguringGraph, isEngineStarted, keyboardGMReady else { return }
+        let currentGraph = graph
+        guard currentGraph.engine.isRunning else { return }
+        performKeyboardNoteOff(on: currentGraph, midi: midi)
     }
 
     /// ピアノ音を短時間だけ鳴らす (鍵盤プレビュー等のワンショット)。
@@ -406,7 +432,8 @@ final class SurvivalGameAudio {
     func playSynthBassRoot(midi: Int) {
         guard !isStopping else { return }
         startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
+        let currentGraph = graph
+        guard !isReconfiguringGraph, isEngineStarted, currentGraph.engine.isRunning else { return }
 
         let shifted = SurvivalFingerBassRootMidi.fromOctave2StyleMidi(midi) + kRootBassPlaybackOctaveShift
         let clamped = max(0, min(127, shifted))
@@ -453,7 +480,7 @@ final class SurvivalGameAudio {
         }
 
         rootBassGMReady = loadSamplerInstrument(
-            rootBassSampler,
+            graph.rootBassSampler,
             bankURL: bankURL,
             program: kRootBassSoundBankProgram
         )
@@ -464,21 +491,23 @@ final class SurvivalGameAudio {
 
     /// FingerBass ワンショット。成功したら true。
     private func playRootBassOneShot(midi: Int) -> Bool {
-        guard rootBassGMReady, !isStopping, isEngineStarted, engine.isRunning else { return false }
+        let currentGraph = graph
+        guard rootBassGMReady, !isStopping, !isReconfiguringGraph, isEngineStarted, currentGraph.engine.isRunning else { return false }
         let n = UInt8(clamping: midi)
         rootBassOneShotGeneration &+= 1
         let generation = rootBassOneShotGeneration
         let playback = SurvivalRootBassRoutePolicy.gain(isBuiltInSpeaker: isBuiltInSpeakerRoute)
-        rootBassSampler.stopNote(n, onChannel: 0)
-        rootBassSampler.startNote(n, withVelocity: playback.velocity, onChannel: 0)
+        currentGraph.rootBassSampler.stopNote(n, onChannel: 0)
+        currentGraph.rootBassSampler.startNote(n, withVelocity: playback.velocity, onChannel: 0)
         let stopDelay: TimeInterval = 0.45
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) { [weak self] in
             guard let self,
                   self.rootBassGMReady,
                   self.rootBassOneShotGeneration == generation,
-                  self.isEngineStarted,
-                  self.engine.isRunning else { return }
-            self.rootBassSampler.stopNote(n, onChannel: 0)
+                  self.isEngineStarted else { return }
+            let g = self.graph
+            guard g === currentGraph, g.engine.isRunning else { return }
+            g.rootBassSampler.stopNote(n, onChannel: 0)
         }
         return true
     }
@@ -522,8 +551,8 @@ final class SurvivalGameAudio {
         AudioUnitSetParameter(au, PeakLimiterParameter.decayTime, kAudioUnitScope_Global, 0, 0.05, 0)
     }
 
-    private func configureRootBassEQ() {
-        let band = rootBassEQ.bands[0]
+    private func configureRootBassEQ(on targetGraph: AudioGraph) {
+        let band = targetGraph.rootBassEQ.bands[0]
         band.filterType = .highShelf
         band.frequency = SurvivalRootBassRoutePolicy.speakerHighShelfFrequency
         band.bandwidth = 1.0
@@ -540,7 +569,7 @@ final class SurvivalGameAudio {
     }
 
     private func applyRootBassRoutePlayback() {
-        rootBassEQ.bands[0].gain = SurvivalRootBassRoutePolicy.highShelfGainDb(
+        graph.rootBassEQ.bands[0].gain = SurvivalRootBassRoutePolicy.highShelfGainDb(
             isBuiltInSpeaker: isBuiltInSpeakerRoute
         )
         if isEngineStarted {
@@ -595,8 +624,9 @@ final class SurvivalGameAudio {
             return
         }
 
+        let currentGraph = graph
         keyboardGMReady = loadSamplerInstrument(
-            keyboardGrandSampler,
+            currentGraph.keyboardGrandSampler,
             bankURL: bankURL,
             program: kPianoSoundBankPreferredProgram
         )
@@ -604,7 +634,7 @@ final class SurvivalGameAudio {
             pianoLoadedProgram = kPianoSoundBankPreferredProgram
         } else {
             keyboardGMReady = loadSamplerInstrument(
-                keyboardGrandSampler,
+                currentGraph.keyboardGrandSampler,
                 bankURL: bankURL,
                 program: kPianoSoundBankFallbackProgram
             )
@@ -615,33 +645,36 @@ final class SurvivalGameAudio {
         }
     }
 
-    private func performKeyboardNoteOn(midi: Int, velocity: Int) {
+    private func performKeyboardNoteOn(on targetGraph: AudioGraph, midi: Int, velocity: Int) {
         let n = UInt8(clamping: max(0, min(127, midi)))
         let vel = PianoVelocityCurve.map(velocity)
-        keyboardGrandSampler.stopNote(n, onChannel: 0)
-        keyboardGrandSampler.startNote(n, withVelocity: vel, onChannel: 0)
+        targetGraph.keyboardGrandSampler.stopNote(n, onChannel: 0)
+        targetGraph.keyboardGrandSampler.startNote(n, withVelocity: vel, onChannel: 0)
     }
 
-    private func performKeyboardNoteOff(midi: Int) {
+    private func performKeyboardNoteOff(on targetGraph: AudioGraph, midi: Int) {
         let n = UInt8(clamping: max(0, min(127, midi)))
-        keyboardGrandSampler.stopNote(n, onChannel: 0)
+        targetGraph.keyboardGrandSampler.stopNote(n, onChannel: 0)
     }
 
     private func stopAllKeyboardNotes() {
         guard keyboardGMReady else { return }
+        let currentGraph = graph
         // ペダルを踏んだまま画面を抜けると鳴り続けるため、先にダンパーを上げる。
-        keyboardGrandSampler.sendController(kSustainPedalController, withValue: 0, onChannel: 0)
+        currentGraph.keyboardGrandSampler.sendController(kSustainPedalController, withValue: 0, onChannel: 0)
         for midi in 0...127 {
             let n = UInt8(clamping: midi)
-            keyboardGrandSampler.stopNote(n, onChannel: 0)
+            currentGraph.keyboardGrandSampler.stopNote(n, onChannel: 0)
         }
     }
 
     /// MIDI キーボードのサステインペダルを AUSampler のダンパーへ渡す。
     /// AUSampler 側がノート保持と解放を行うため、アプリ側でノートを溜める必要はない。
     private func setPianoSustainPedal(isDown: Bool) {
-        guard !isStopping, isEngineStarted, engine.isRunning, keyboardGMReady else { return }
-        keyboardGrandSampler.sendController(
+        guard !isStopping, !isReconfiguringGraph, isEngineStarted, keyboardGMReady else { return }
+        let currentGraph = graph
+        guard currentGraph.engine.isRunning else { return }
+        currentGraph.keyboardGrandSampler.sendController(
             kSustainPedalController,
             withValue: isDown ? 127 : 0,
             onChannel: 0
@@ -675,24 +708,26 @@ final class SurvivalGameAudio {
 
     private func stopAllRootBassNotes() {
         guard rootBassGMReady else { return }
+        let currentGraph = graph
         for midi in 0...127 {
             let n = UInt8(clamping: midi)
-            rootBassSampler.stopNote(n, onChannel: 0)
+            currentGraph.rootBassSampler.stopNote(n, onChannel: 0)
         }
     }
 
     /// `engine.stop()` 後の再起動で SF2 サンプラー状態を復元する。
     private func reloadSoundBanksAfterEngineStartIfNeeded() {
+        let currentGraph = graph
         if keyboardGMLoadAttempted, let bankURL = resolvePianoSoundBankURL() {
             keyboardGMReady = loadSamplerInstrument(
-                keyboardGrandSampler,
+                currentGraph.keyboardGrandSampler,
                 bankURL: bankURL,
                 program: pianoLoadedProgram
             )
         }
         if rootBassGMLoadAttempted, let bankURL = resolveRootBassSoundBankURL() {
             rootBassGMReady = loadSamplerInstrument(
-                rootBassSampler,
+                currentGraph.rootBassSampler,
                 bankURL: bankURL,
                 program: kRootBassSoundBankProgram
             )
@@ -709,13 +744,7 @@ final class SurvivalGameAudio {
         ) { [weak self] notification in
             self?.handleAudioSessionInterruption(notification)
         }
-        engineConfigObserver = center.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleEngineConfigurationChange()
-        }
+        rebindEngineConfigObserver()
         foregroundObserver = center.addObserver(
             forName: UIApplication.didBecomeActiveNotification,
             object: nil,
@@ -746,11 +775,45 @@ final class SurvivalGameAudio {
         }
     }
 
-    /// AppAudioSession 再構成後: エンジン stop/start → BGM 復帰 → 完了通知。
+    private func rebindEngineConfigObserver() {
+        let center = NotificationCenter.default
+        if let existing = engineConfigObserver {
+            center.removeObserver(existing)
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: graph.engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
+    private func schedulePendingConfigurationCheck() {
+        pendingConfigurationWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, !self.isStopping, !self.isReconfiguringGraph else { return }
+            guard self.isEngineStarted || self.isPianoPrepared else { return }
+            let currentGraph = self.graph
+            let expectedRate = self.lastAppliedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: currentGraph.engine)
+            let mismatch = AudioOutputFormatResolver.postStartMismatchedRate(
+                engine: currentGraph.engine,
+                expectedSampleRate: expectedRate
+            ) != nil
+            if !currentGraph.engine.isRunning || mismatch {
+                self.reconfigureAfterAudioSessionTransition()
+            }
+        }
+        pendingConfigurationWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
+    }
+
+    /// AppAudioSession 再構成後: エンジン再生成・起動 → BGM 復帰 → 完了通知。
     private func reconfigureAfterAudioSessionTransition() {
+        let currentGraph = graph
         guard AppAudioSession.shared.canStartAudioEngine else {
-            if engine.isRunning {
-                engine.stop()
+            if currentGraph.engine.isRunning {
+                currentGraph.engine.stop()
             }
             isEngineStarted = false
             return
@@ -768,8 +831,8 @@ final class SurvivalGameAudio {
         stopAllKeyboardNotes()
         stopAllRootBassNotes()
 
-        if engine.isRunning {
-            engine.stop()
+        if currentGraph.engine.isRunning {
+            currentGraph.engine.stop()
         }
         isEngineStarted = false
 
@@ -781,18 +844,46 @@ final class SurvivalGameAudio {
         }
     }
 
-    private func reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: Bool = false) {
-        guard !isReconfiguringGraph else { return }
-        let currentRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+    private func reconfigureGraphForSampleRateChangeIfNeeded(
+        forceReconnect: Bool = false,
+        forcedSampleRate: Double? = nil
+    ) {
+        guard !isReconfiguringGraph else {
+            pendingConfigurationChange = true
+            return
+        }
+        let oldGraph = graph
+        let currentRate = forcedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: oldGraph.engine)
         let rateChanged: Bool = {
             guard let lastApplied = lastAppliedSampleRate else { return true }
             return !AudioOutputFormatResolver.sampleRatesMatch(currentRate, lastApplied)
         }()
         guard forceReconnect || rateChanged else { return }
+
         isReconfiguringGraph = true
-        defer { isReconfiguringGraph = false }
-        engine.reset()
-        connectGraphNodes()
+        pendingConfigurationChange = false
+        defer {
+            isReconfiguringGraph = false
+            if pendingConfigurationChange {
+                pendingConfigurationChange = false
+                schedulePendingConfigurationCheck()
+            }
+        }
+
+        isEngineStarted = false
+        keyboardGMReady = false
+        rootBassGMReady = false
+        if oldGraph.engine.isRunning {
+            oldGraph.engine.stop()
+        }
+        oldGraph.engine.reset()
+
+        let newGraph = AudioGraph()
+        connectGraphNodes(on: newGraph, forcedSampleRate: forcedSampleRate)
+        graphLock.lock()
+        _graph = newGraph
+        graphLock.unlock()
+        rebindEngineConfigObserver()
     }
 
     private func handleAudioSessionInterruption(_ notification: Notification) {
@@ -820,7 +911,8 @@ final class SurvivalGameAudio {
         guard !isStopping else { return }
         guard AppAudioSession.shared.canStartAudioEngine else { return }
         guard isEngineStarted || currentBgmUrl != nil || isPianoPrepared else { return }
-        if isEngineStarted && engine.isRunning {
+        let currentGraph = graph
+        if isEngineStarted && currentGraph.engine.isRunning {
             if currentBgmUrl != nil && bgmPlayer.timeControlStatus != .playing {
                 playBgm()
             }
@@ -836,14 +928,23 @@ final class SurvivalGameAudio {
     private func handleEngineConfigurationChange() {
         guard !isStopping else { return }
         guard isEngineStarted || isPianoPrepared else { return }
+        if isReconfiguringGraph {
+            pendingConfigurationChange = true
+            return
+        }
         guard AppAudioSession.shared.canStartAudioEngine else {
             isEngineStarted = false
             return
         }
         DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isStopping, !self.isReconfiguringGraph else { return }
-            if self.engine.isRunning {
-                self.engine.stop()
+            guard let self, !self.isStopping else { return }
+            if self.isReconfiguringGraph {
+                self.pendingConfigurationChange = true
+                return
+            }
+            let currentGraph = self.graph
+            if currentGraph.engine.isRunning {
+                currentGraph.engine.stop()
             }
             self.isEngineStarted = false
             self.reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: true)
@@ -854,20 +955,45 @@ final class SurvivalGameAudio {
         }
     }
 
-    private func startEngineIfNeeded() {
+    private func startEngineIfNeeded(allowPostStartRetry: Bool = true) {
         guard !isStopping else { return }
         guard AppAudioSession.shared.canStartAudioEngine else {
             isEngineStarted = false
             return
         }
-        if isEngineStarted && engine.isRunning { return }
+        let currentGraph = graph
+        if isEngineStarted && currentGraph.engine.isRunning { return }
         do {
             // レンダーリソースを事前確保し、コールドスタート初回の取りこぼし（グリッチ）を抑える。
-            engine.prepare()
-            try engine.start()
+            currentGraph.engine.prepare()
+            try currentGraph.engine.start()
+            let expectedRate = lastAppliedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: currentGraph.engine)
+            if allowPostStartRetry,
+               let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+                   engine: currentGraph.engine,
+                   expectedSampleRate: expectedRate
+               ) {
+                AudioRateDiagnostics.logEngineStart(
+                    tag: "SurvivalGame.start.mismatch",
+                    engine: currentGraph.engine,
+                    deckSampleRate: expectedRate,
+                    bufferSampleRate: nil,
+                    didRetry: false
+                )
+                reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: true, forcedSampleRate: actualRate)
+                startEngineIfNeeded(allowPostStartRetry: false)
+                return
+            }
             applyVolumesToNodes()
             isEngineStarted = true
-            lastAppliedSampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+            lastAppliedSampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: currentGraph.engine)
+            AudioRateDiagnostics.logEngineStart(
+                tag: "SurvivalGame.start",
+                engine: currentGraph.engine,
+                deckSampleRate: expectedRate,
+                bufferSampleRate: nil,
+                didRetry: !allowPostStartRetry
+            )
             reloadSoundBanksAfterEngineStartIfNeeded()
         } catch {
             isEngineStarted = false
@@ -875,14 +1001,21 @@ final class SurvivalGameAudio {
                   !AppAudioSession.isCannotStartPlayingError(error) else {
                 return
             }
-            engine.reset()
-            connectGraphNodes()
-            engine.prepare()
-            try? engine.start()
+            reconfigureGraphForSampleRateChangeIfNeeded(forceReconnect: true)
+            let rebuiltGraph = graph
+            rebuiltGraph.engine.prepare()
+            try? rebuiltGraph.engine.start()
             applyVolumesToNodes()
-            if engine.isRunning {
+            if rebuiltGraph.engine.isRunning {
                 isEngineStarted = true
-                lastAppliedSampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+                lastAppliedSampleRate = AudioOutputFormatResolver.resolveSampleRate(engine: rebuiltGraph.engine)
+                AudioRateDiagnostics.logEngineStart(
+                    tag: "SurvivalGame.start.fallback",
+                    engine: rebuiltGraph.engine,
+                    deckSampleRate: lastAppliedSampleRate ?? 0,
+                    bufferSampleRate: nil,
+                    didRetry: true
+                )
                 reloadSoundBanksAfterEngineStartIfNeeded()
             }
         }
@@ -891,12 +1024,13 @@ final class SurvivalGameAudio {
     /// BGM / SFX / ピアノ それぞれの出力ボリュームを現在の保存値 & ミュート状態から更新する。
     /// mainMixer はヘッドルーム用に下げ、各入力ミキサーの `outputVolume` で個別制御する。
     private func applyVolumesToNodes() {
+        let currentGraph = graph
         bgmPlayer.volume = effectiveBgmVolume()
-        engine.mainMixerNode.outputVolume = kMasterHeadroomGain * effectiveMasterVolume()
-        sfxMixer.outputVolume = effectiveSfxVolume()
-        pianoMixer.outputVolume = effectivePianoVolume()
-        rootBassMixer.outputVolume = effectiveRootBassVolume()
-        keyboardGrandSampler.masterGain = kPianoSamplerBoostDb
+        currentGraph.engine.mainMixerNode.outputVolume = kMasterHeadroomGain * effectiveMasterVolume()
+        currentGraph.sfxMixer.outputVolume = effectiveSfxVolume()
+        currentGraph.pianoMixer.outputVolume = effectivePianoVolume()
+        currentGraph.rootBassMixer.outputVolume = effectiveRootBassVolume()
+        currentGraph.keyboardGrandSampler.masterGain = kPianoSamplerBoostDb
     }
 
     private func effectiveMasterVolume() -> Float {
@@ -943,17 +1077,20 @@ final class SurvivalGameAudio {
     private func playChord(_ notes: [Int], velocity: Int, duration: TimeInterval) {
         guard !isStopping else { return }
         startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
+        let currentGraph = graph
+        guard !isReconfiguringGraph, isEngineStarted, currentGraph.engine.isRunning else { return }
         let vel = UInt8(max(1, min(127, velocity)))
         for note in notes {
             let n = UInt8(max(0, min(127, note)))
-            sampler.startNote(n, withVelocity: vel, onChannel: 0)
+            currentGraph.sampler.startNote(n, withVelocity: vel, onChannel: 0)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
-            guard let self, self.isEngineStarted, self.engine.isRunning else { return }
+            guard let self, self.isEngineStarted else { return }
+            let g = self.graph
+            guard g === currentGraph, g.engine.isRunning else { return }
             for note in notes {
                 let n = UInt8(max(0, min(127, note)))
-                self.sampler.stopNote(n, onChannel: 0)
+                g.sampler.stopNote(n, onChannel: 0)
             }
         }
     }
@@ -961,7 +1098,8 @@ final class SurvivalGameAudio {
     private func playArpeggio(_ notes: [Int], stepInterval: TimeInterval, velocity: Int, duration: TimeInterval) {
         guard !isStopping else { return }
         startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
+        let currentGraph = graph
+        guard !isReconfiguringGraph, isEngineStarted, currentGraph.engine.isRunning else { return }
         for (idx, note) in notes.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(idx) * stepInterval) { [weak self] in
                 // `playNote` 内で再度 isEngineStarted / engine.isRunning をチェックするため

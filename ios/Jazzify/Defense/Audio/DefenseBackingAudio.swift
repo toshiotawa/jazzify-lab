@@ -7,12 +7,12 @@ import UIKit
 final class DefenseBackingAudio: @unchecked Sendable {
     static let shared = DefenseBackingAudio()
 
-    private let engine = AVAudioEngine()
-    private let deckMixer = AVAudioMixerNode()
-    private let masterMixer = AVAudioMixerNode()
-    private let timePitch = AVAudioUnitTimePitch()
-    private let playerA = AVAudioPlayerNode()
-    private let playerB = AVAudioPlayerNode()
+    private var engine = AVAudioEngine()
+    private var deckMixer = AVAudioMixerNode()
+    private var masterMixer = AVAudioMixerNode()
+    private var timePitch = AVAudioUnitTimePitch()
+    private var playerA = AVAudioPlayerNode()
+    private var playerB = AVAudioPlayerNode()
     private let cache = RemoteAudioFileCache(subdirectory: "defense-backing")
     private var pcmCache: [URL: AVAudioPCMBuffer] = [:]
     private var pcmDecodeTasks: [URL: Task<AVAudioPCMBuffer, Error>] = [:]
@@ -26,6 +26,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var bufferA: AVAudioPCMBuffer?
     private var bufferB: AVAudioPCMBuffer?
     private var isMutatingGraph = false
+    private var pendingConfigurationChange = false
+    private var pendingConfigurationWorkItem: DispatchWorkItem?
     private var graphReady = false
     private var deckFormat: AVAudioFormat?
     private var synthesizedTutorialConcertMidis: [Int]?
@@ -310,14 +312,75 @@ final class DefenseBackingAudio: @unchecked Sendable {
                     return
                 }
                 guard let native = self.activeIsA ? self.sourceBufferA : self.sourceBufferB else { return }
-                let rebuilt = self.bufferMatchingDeckFormat(native)
+                self.ensureGraph()
+                var rebuilt = self.bufferMatchingDeckFormat(native)
+                var sourceRef = native
+                if let midis = self.synthesizedTutorialConcertMidis,
+                   let synthesized = DefenseTutorialAudio.synthesize(
+                       concertMidis: midis,
+                       sampleRate: self.deckFormat?.sampleRate
+                   ) {
+                    sourceRef = synthesized
+                    rebuilt = synthesized
+                }
+                self.engine.prepare()
+                do {
+                    try self.engine.start()
+                } catch {
+                    return
+                }
+                if let expectedRate = self.deckFormat?.sampleRate,
+                   let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+                       engine: self.engine,
+                       expectedSampleRate: expectedRate
+                   ) {
+                    AudioRateDiagnostics.logEngineStart(
+                        tag: "DefenseBacking.resume.mismatch",
+                        engine: self.engine,
+                        deckSampleRate: expectedRate,
+                        bufferSampleRate: rebuilt.format.sampleRate,
+                        didRetry: false
+                    )
+                    self.ensureGraph(forceRebuild: true, forcedSampleRate: actualRate)
+                    if let midis = self.synthesizedTutorialConcertMidis,
+                       let synthesized = DefenseTutorialAudio.synthesize(
+                           concertMidis: midis,
+                           sampleRate: self.deckFormat?.sampleRate
+                       ) {
+                        sourceRef = synthesized
+                        rebuilt = synthesized
+                    } else {
+                        rebuilt = self.bufferMatchingDeckFormat(native)
+                    }
+                    self.engine.prepare()
+                    do {
+                        try self.engine.start()
+                    } catch {
+                        return
+                    }
+                    AudioRateDiagnostics.logEngineStart(
+                        tag: "DefenseBacking.resume",
+                        engine: self.engine,
+                        deckSampleRate: self.deckFormat?.sampleRate ?? actualRate,
+                        bufferSampleRate: rebuilt.format.sampleRate,
+                        didRetry: true
+                    )
+                } else {
+                    AudioRateDiagnostics.logEngineStart(
+                        tag: "DefenseBacking.resume",
+                        engine: self.engine,
+                        deckSampleRate: self.deckFormat?.sampleRate ?? 0,
+                        bufferSampleRate: rebuilt.format.sampleRate,
+                        didRetry: false
+                    )
+                }
                 if self.activeIsA {
-                    self.sourceBufferA = native
+                    self.sourceBufferA = sourceRef
                     self.bufferA = rebuilt
                     self.sourceBufferB = nil
                     self.bufferB = nil
                 } else {
-                    self.sourceBufferB = native
+                    self.sourceBufferB = sourceRef
                     self.bufferB = rebuilt
                     self.sourceBufferA = nil
                     self.bufferA = nil
@@ -325,12 +388,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 let active = self.activeIsA ? self.playerA : self.playerB
                 active.stop()
                 active.reset()
-                self.engine.prepare()
-                do {
-                    try self.engine.start()
-                } catch {
-                    return
-                }
                 self.applyMasterMixerVolume()
                 self.applyTimePitchSettings()
                 let resumeAt = Self.hostTimeSec() + Self.reconfigureLeadSec
@@ -372,6 +429,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
             guard let self else { return }
             self.switchScheduleToken &+= 1
             self.cancelOutgoingStopWork()
+            self.pendingConfigurationWorkItem?.cancel()
+            self.pendingConfigurationWorkItem = nil
+            self.pendingConfigurationChange = false
             if self.graphReady {
                 self.playerA.stop()
                 self.playerB.stop()
@@ -404,10 +464,11 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
-    private func ensureGraph(forceRebuild: Bool = false) {
+    private func ensureGraph(forceRebuild: Bool = false, forcedSampleRate: Double? = nil) {
         registerLifecycleObserversIfNeeded()
-        let resolved = AudioOutputFormatResolver.stereoFormat(engine: engine)
-        if graphReady, !forceRebuild, let deckFormat,
+        let resolved = forcedSampleRate.map { AudioOutputFormatResolver.stereoFormat(sampleRate: $0) }
+            ?? AudioOutputFormatResolver.stereoFormat(engine: engine)
+        if graphReady, !forceRebuild, forcedSampleRate == nil, let deckFormat,
            deckFormat.isEqual(resolved),
            AudioOutputFormatResolver.sampleRatesMatch(deckFormat.sampleRate, resolved.sampleRate) {
             return
@@ -419,23 +480,31 @@ final class DefenseBackingAudio: @unchecked Sendable {
         defer {
             if ownsMutationGuard {
                 isMutatingGraph = false
+                if pendingConfigurationChange {
+                    pendingConfigurationChange = false
+                    schedulePendingConfigurationCheck()
+                }
             }
         }
-        if graphReady {
-            engine.stop()
-            if forceRebuild {
-                engine.reset()
+        if graphReady || forceRebuild || forcedSampleRate != nil {
+            playerA.stop()
+            playerB.stop()
+            if engine.isRunning {
+                engine.stop()
             }
-            engine.disconnectNodeInput(engine.mainMixerNode)
-            engine.detach(deckMixer)
-            engine.detach(masterMixer)
-            engine.detach(timePitch)
-            engine.detach(playerA)
-            engine.detach(playerB)
+            engine.reset()
+            engine = AVAudioEngine()
+            deckMixer = AVAudioMixerNode()
+            masterMixer = AVAudioMixerNode()
+            timePitch = AVAudioUnitTimePitch()
+            playerA = AVAudioPlayerNode()
+            playerB = AVAudioPlayerNode()
+            rebindEngineConfigObserver()
             graphReady = false
         }
         guard !graphReady else { return }
-        let format = AudioOutputFormatResolver.stereoFormat(engine: engine)
+        let format = forcedSampleRate.map { AudioOutputFormatResolver.stereoFormat(sampleRate: $0) }
+            ?? AudioOutputFormatResolver.stereoFormat(engine: engine)
         deckFormat = format
 
         engine.attach(deckMixer)
@@ -447,8 +516,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
         engine.connect(playerB, to: deckMixer, format: format)
         engine.connect(deckMixer, to: timePitch, format: format)
         engine.connect(timePitch, to: masterMixer, format: format)
-        engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(masterMixer, to: engine.mainMixerNode, format: format)
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         applyTimePitchSettings()
+        applyMasterMixerVolume()
         graphReady = true
     }
 
@@ -571,7 +642,54 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 needsEngineResumeOnActive = true
                 return
             }
+            engine.prepare()
             try engine.start()
+        }
+        if let expectedRate = deckFormat?.sampleRate,
+           let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+               engine: engine,
+               expectedSampleRate: expectedRate
+           ) {
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseBacking.startEngine.mismatch",
+                engine: engine,
+                deckSampleRate: expectedRate,
+                bufferSampleRate: outputBuffer.format.sampleRate,
+                didRetry: false
+            )
+            ensureGraph(forceRebuild: true, forcedSampleRate: actualRate)
+            let retriedBuffer: AVAudioPCMBuffer
+            if let midis = synthesizedTutorialConcertMidis,
+               let resynthesized = DefenseTutorialAudio.synthesize(
+                   concertMidis: midis,
+                   sampleRate: deckFormat?.sampleRate
+               ) {
+                sourceBufferA = resynthesized
+                retriedBuffer = resynthesized
+            } else {
+                retriedBuffer = bufferMatchingDeckFormat(buffer)
+            }
+            bufferA = retriedBuffer
+            playerA.scheduleBuffer(retriedBuffer, at: nil, options: [.loops])
+            applyMasterMixerVolume()
+            applyTimePitchSettings()
+            engine.prepare()
+            try engine.start()
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseBacking.startEngine",
+                engine: engine,
+                deckSampleRate: deckFormat?.sampleRate ?? actualRate,
+                bufferSampleRate: retriedBuffer.format.sampleRate,
+                didRetry: true
+            )
+        } else {
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseBacking.startEngine",
+                engine: engine,
+                deckSampleRate: deckFormat?.sampleRate ?? 0,
+                bufferSampleRate: outputBuffer.format.sampleRate,
+                didRetry: false
+            )
         }
         needsEngineResumeOnActive = false
         presentationLatency = playerA.outputPresentationLatency
@@ -805,13 +923,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.handleSharedAudioSessionReconfigure()
         }
-        engineConfigObserver = center.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleEngineConfigurationChange()
-        }
+        rebindEngineConfigObserver()
         voicePolicyObserver = center.addObserver(
             forName: VoiceSpeakerBleedCoordinator.policyDidChangeNotification,
             object: nil,
@@ -830,24 +942,86 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
+    private func rebindEngineConfigObserver() {
+        let center = NotificationCenter.default
+        if let existing = engineConfigObserver {
+            center.removeObserver(existing)
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
     private func handleEngineConfigurationChange() {
-        guard !isMutatingGraph else { return }
+        if isMutatingGraph {
+            pendingConfigurationChange = true
+            return
+        }
         restartEngineIfNeeded()
     }
 
     private func handleSharedAudioSessionReconfigure() {
         runOnMain { [weak self] in
             guard let self else { return }
-            self.ensureGraph()
             self.restartEngineIfNeeded()
         }
     }
 
-    private func restartEngineIfNeeded() {
-        guard !isMutatingGraph else { return }
+    private func schedulePendingConfigurationCheck() {
+        pendingConfigurationWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, !self.isMutatingGraph else { return }
+            guard self.playbackIntended else { return }
+            let rateMismatch: Bool = {
+                guard let expected = self.deckFormat?.sampleRate else { return true }
+                return AudioOutputFormatResolver.postStartMismatchedRate(
+                    engine: self.engine,
+                    expectedSampleRate: expected
+                ) != nil
+            }()
+            if !self.engine.isRunning || rateMismatch {
+                self.restartEngineIfNeeded()
+            }
+        }
+        pendingConfigurationWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
+    }
+
+    private func rebuildOutputBufferForCurrentDeck(
+        nativeFallback: AVAudioPCMBuffer?
+    ) -> (source: AVAudioPCMBuffer?, output: AVAudioPCMBuffer?) {
+        if let midis = synthesizedTutorialConcertMidis,
+           let synthesized = DefenseTutorialAudio.synthesize(
+               concertMidis: midis,
+               sampleRate: deckFormat?.sampleRate
+           ) {
+            return (synthesized, synthesized)
+        }
+        if let nativeSource = nativeFallback {
+            return (nativeSource, bufferMatchingDeckFormat(nativeSource))
+        }
+        return (nil, nil)
+    }
+
+    private func restartEngineIfNeeded(forcedSampleRate: Double? = nil, allowPostStartRetry: Bool = true) {
+        guard !isMutatingGraph else {
+            pendingConfigurationChange = true
+            return
+        }
         guard graphReady || playbackIntended else { return }
         isMutatingGraph = true
-        defer { isMutatingGraph = false }
+        pendingConfigurationChange = false
+        defer {
+            isMutatingGraph = false
+            if pendingConfigurationChange {
+                pendingConfigurationChange = false
+                schedulePendingConfigurationCheck()
+            }
+        }
 
         os_unfair_lock_lock(&lock)
         let pausedAt = pausedAtHostSec
@@ -866,38 +1040,24 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
         let shouldResume = playbackIntended
         cancelOutgoingStopWork()
+        let originalNative = activeIsA ? sourceBufferA : sourceBufferB
 
         if engine.isRunning {
             engine.stop()
         }
-        ensureGraph(forceRebuild: true)
+        ensureGraph(forceRebuild: true, forcedSampleRate: forcedSampleRate)
 
-        let rebuiltOutput: AVAudioPCMBuffer?
-        let rebuiltSource: AVAudioPCMBuffer?
-        if let midis = synthesizedTutorialConcertMidis,
-           let synthesized = DefenseTutorialAudio.synthesize(
-               concertMidis: midis,
-               sampleRate: deckFormat?.sampleRate
-           ) {
-            rebuiltSource = synthesized
-            rebuiltOutput = synthesized
-        } else if let nativeSource = activeIsA ? sourceBufferA : sourceBufferB {
-            rebuiltSource = nativeSource
-            rebuiltOutput = bufferMatchingDeckFormat(nativeSource)
-        } else {
-            rebuiltSource = nil
-            rebuiltOutput = nil
-        }
+        var rebuilt = rebuildOutputBufferForCurrentDeck(nativeFallback: originalNative)
 
-        if let rebuiltOutput {
+        if let rebuiltOutput = rebuilt.output {
             if activeIsA {
                 bufferA = rebuiltOutput
-                sourceBufferA = rebuiltSource
+                sourceBufferA = rebuilt.source
                 bufferB = nil
                 sourceBufferB = nil
             } else {
                 bufferB = rebuiltOutput
-                sourceBufferB = rebuiltSource
+                sourceBufferB = rebuilt.source
                 bufferA = nil
                 sourceBufferA = nil
             }
@@ -917,7 +1077,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         needsEngineResumeOnActive = false
         needsRescheduleOnResume = false
 
-        guard shouldResume, let buffer = activeIsA ? bufferA : bufferB else { return }
+        guard shouldResume, var buffer = activeIsA ? bufferA : bufferB else { return }
 
         engine.prepare()
         do {
@@ -928,6 +1088,58 @@ final class DefenseBackingAudio: @unchecked Sendable {
             }
             return
         }
+
+        if allowPostStartRetry,
+           let expectedRate = deckFormat?.sampleRate,
+           let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+               engine: engine,
+               expectedSampleRate: expectedRate
+           ) {
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseBacking.restart.mismatch",
+                engine: engine,
+                deckSampleRate: expectedRate,
+                bufferSampleRate: buffer.format.sampleRate,
+                didRetry: false
+            )
+            ensureGraph(forceRebuild: true, forcedSampleRate: actualRate)
+            rebuilt = rebuildOutputBufferForCurrentDeck(nativeFallback: originalNative)
+            if let retriedOutput = rebuilt.output {
+                buffer = retriedOutput
+                if activeIsA {
+                    bufferA = retriedOutput
+                    sourceBufferA = rebuilt.source
+                } else {
+                    bufferB = retriedOutput
+                    sourceBufferB = rebuilt.source
+                }
+            }
+            engine.prepare()
+            do {
+                try engine.start()
+            } catch {
+                if AppAudioSession.isCannotStartPlayingError(error) {
+                    needsEngineResumeOnActive = true
+                }
+                return
+            }
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseBacking.restart",
+                engine: engine,
+                deckSampleRate: deckFormat?.sampleRate ?? actualRate,
+                bufferSampleRate: buffer.format.sampleRate,
+                didRetry: true
+            )
+        } else {
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseBacking.restart",
+                engine: engine,
+                deckSampleRate: deckFormat?.sampleRate ?? 0,
+                bufferSampleRate: buffer.format.sampleRate,
+                didRetry: false
+            )
+        }
+
         applyMasterMixerVolume()
         applyTimePitchSettings()
 

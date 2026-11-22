@@ -21,13 +21,13 @@ final class AppAudioSession {
     private static let reconfigureDelay: TimeInterval = 0.15
     /// マイク停止後、`.playback` へ戻すまでの猶予。画面遷移の一瞬の購読 0 でカテゴリ往復しない。
     private static let recordingDisableDebounce: TimeInterval = 2.0
-    /// PESTO 推論と一致させる録音時の優先サンプルレート。
-    private static let recordingPreferredSampleRate: Double = 48_000
     /// configure() / VPIO 切替直後に自己誘発 routeChange を無視する秒数。
     private static let automaticReconfigureSuppression: TimeInterval = 1.0
 
     private var lastAppliedIOBufferDuration: TimeInterval?
     private var lastAppliedSampleRate: Double?
+    private var lastAppliedPreferredSampleRate: Double?
+    private var pendingAlwaysNotify = false
     private var reconfigureWorkItem: DispatchWorkItem?
     private var recordingDisableWorkItem: DispatchWorkItem?
     private var captureObserver: NSObjectProtocol?
@@ -161,7 +161,12 @@ final class AppAudioSession {
         }
 
         let session = AVAudioSession.sharedInstance()
-        let targetBuffer = preferredIOBufferDuration
+        let isCaptured = UIScreen.main.isCaptured
+        let targetBuffer = preferredIOBufferDuration(isCaptured: isCaptured)
+        let targetPreferredSampleRate = AudioOutputFormatResolver.preferredSessionSampleRate(
+            recordingEnabled: recordingEnabled,
+            isScreenCaptured: isCaptured
+        )
         let currentSampleRate = session.sampleRate
 
         let targetCategory: AVAudioSession.Category = recordingEnabled ? .playAndRecord : .playback
@@ -177,31 +182,28 @@ final class AppAudioSession {
         let optionsMatch = session.categoryOptions == targetOptions
         let modeMatches = session.mode == .default
         let bufferMatches = lastAppliedIOBufferDuration == targetBuffer
+        let preferredSampleRateMatches = lastAppliedPreferredSampleRate == targetPreferredSampleRate
         let sampleRateMatches: Bool = {
             guard let lastApplied = lastAppliedSampleRate, currentSampleRate > 0 else { return false }
             return AudioOutputFormatResolver.sampleRatesMatch(currentSampleRate, lastApplied)
         }()
 
-        if !force, categoryMatches, optionsMatch, modeMatches, bufferMatches, sampleRateMatches {
+        if !force, categoryMatches, optionsMatch, modeMatches, bufferMatches, preferredSampleRateMatches, sampleRateMatches {
             return false
         }
 
         let previousBuffer = lastAppliedIOBufferDuration
         let previousSampleRate = lastAppliedSampleRate
+        let previousPreferredSampleRate = lastAppliedPreferredSampleRate
 
         suppressAutomaticReconfigure(for: Self.automaticReconfigureSuppression)
 
         try? session.setCategory(targetCategory, mode: .default, options: targetOptions)
-        if recordingEnabled {
-            // PESTO の 48 kHz と揃え、カテゴリ切替後のレート変動による BGM 再構築を抑える。
-            try? session.setPreferredSampleRate(Self.recordingPreferredSampleRate)
-        } else {
-            try? session.setPreferredSampleRate(0)
-        }
-        // 44.1 kHz 固定は画面録画 (48 kHz) 時のリサンプル負荷でアンダーランを起こしやすい。
-        // ハードウェア優先レート (多くの端末は 48 kHz) に追従させる。
+        try? session.setPreferredSampleRate(targetPreferredSampleRate)
+        lastAppliedPreferredSampleRate = targetPreferredSampleRate
         // 非録画時は 20ms で鍵盤 / 正解ルート / デモプレイの低レイテンシを維持する。
         // 録画中のみ 40ms へ緩め、CPU 負荷下のアンダーラン（「ガガガ」）を抑える。
+        // 録画中およびマイク有効時は 48 kHz を要求し、ReplayKit / PESTO とレートを揃える。
         try? session.setPreferredIOBufferDuration(targetBuffer)
         lastAppliedIOBufferDuration = targetBuffer
         try? session.setActive(true, options: [])
@@ -217,17 +219,29 @@ final class AppAudioSession {
             return !AudioOutputFormatResolver.sampleRatesMatch(previous, updatedSampleRate)
         }()
 
-        return !categoryMatches
+        let didChange = !categoryMatches
             || !optionsMatch
             || !modeMatches
             || previousBuffer != targetBuffer
+            || previousPreferredSampleRate != targetPreferredSampleRate
             || sampleRateChanged
+
+        AudioRateDiagnostics.logSessionConfigure(
+            session: session,
+            isCaptured: isCaptured,
+            recordingEnabled: recordingEnabled,
+            preferredSampleRate: targetPreferredSampleRate,
+            targetIOBufferDuration: targetBuffer,
+            didChange: didChange
+        )
+
+        return didChange
     }
 
     // MARK: - Private
 
-    private var preferredIOBufferDuration: TimeInterval {
-        if UIScreen.main.isCaptured { return Self.capturedIOBufferDuration }
+    private func preferredIOBufferDuration(isCaptured: Bool) -> TimeInterval {
+        if isCaptured { return Self.capturedIOBufferDuration }
         if recordingEnabled { return Self.recordingIOBufferDuration }
         return Self.normalIOBufferDuration
     }
@@ -241,7 +255,7 @@ final class AppAudioSession {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.scheduleReconfigure()
+            self?.scheduleReconfigure(alwaysNotify: true)
         }
 
         routeChangeObserver = center.addObserver(
@@ -257,7 +271,7 @@ final class AppAudioSession {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.scheduleReconfigure()
+            self?.scheduleReconfigure(alwaysNotify: true)
         }
 
         interruptionObserver = center.addObserver(
@@ -277,6 +291,7 @@ final class AppAudioSession {
             self.isBackgrounded = true
             self.reconfigureWorkItem?.cancel()
             self.reconfigureWorkItem = nil
+            self.pendingAlwaysNotify = false
         }
 
         didBecomeActiveObserver = center.addObserver(
@@ -318,7 +333,7 @@ final class AppAudioSession {
         switch reason {
         case .oldDeviceUnavailable, .newDeviceAvailable:
             VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
-            scheduleReconfigure()
+            scheduleReconfigure(alwaysNotify: true)
         case .categoryChange, .routeConfigurationChange, .override:
             if AudioOutputFormatResolver.shouldSuppressRouteChange(
                 reason: reason,
@@ -334,12 +349,15 @@ final class AppAudioSession {
         }
     }
 
-    private func scheduleReconfigure() {
+    private func scheduleReconfigure(alwaysNotify: Bool = false) {
+        pendingAlwaysNotify = pendingAlwaysNotify || alwaysNotify
         reconfigureWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            let forceNotify = self.pendingAlwaysNotify
+            self.pendingAlwaysNotify = false
             let didChange = self.configure(force: true)
-            if didChange {
+            if didChange || forceNotify {
                 NotificationCenter.default.post(name: Self.didReconfigureNotification, object: self)
             }
         }
