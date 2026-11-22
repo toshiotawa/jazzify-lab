@@ -702,7 +702,7 @@ final class SurvivalGameAudio {
             self?.handleEngineConfigurationChange()
         }
         foregroundObserver = center.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
+            forName: UIApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -733,6 +733,14 @@ final class SurvivalGameAudio {
 
     /// AppAudioSession 再構成後: エンジン stop/start → BGM 復帰 → 完了通知。
     private func reconfigureAfterAudioSessionTransition() {
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            if engine.isRunning {
+                engine.stop()
+            }
+            isEngineStarted = false
+            return
+        }
+
         defer {
             NotificationCenter.default.post(name: Self.didReconfigureAudioGraphNotification, object: self)
         }
@@ -780,7 +788,14 @@ final class SurvivalGameAudio {
     /// バックグラウンド復帰・割り込み終了・ルート変更後に AVAudioSession / エンジン / BGM を再開する。
     private func reactivateAudioAfterForeground() {
         guard !isStopping else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else { return }
         guard isEngineStarted || currentBgmUrl != nil || isPianoPrepared else { return }
+        if isEngineStarted && engine.isRunning {
+            if currentBgmUrl != nil && bgmPlayer.timeControlStatus != .playing {
+                playBgm()
+            }
+            return
+        }
         AppAudioSession.shared.configure()
         startEngineIfNeeded()
         if currentBgmUrl != nil {
@@ -791,6 +806,10 @@ final class SurvivalGameAudio {
     private func handleEngineConfigurationChange() {
         guard !isStopping else { return }
         guard isEngineStarted || isPianoPrepared else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            isEngineStarted = false
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.isStopping else { return }
             self.startEngineIfNeeded()
@@ -799,6 +818,10 @@ final class SurvivalGameAudio {
 
     private func startEngineIfNeeded() {
         guard !isStopping else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            isEngineStarted = false
+            return
+        }
         if isEngineStarted && engine.isRunning { return }
         do {
             // レンダーリソースを事前確保し、コールドスタート初回の取りこぼし（グリッチ）を抑える。
@@ -809,6 +832,10 @@ final class SurvivalGameAudio {
             reloadSoundBanksAfterEngineStartIfNeeded()
         } catch {
             isEngineStarted = false
+            guard AppAudioSession.shared.canStartAudioEngine,
+                  !AppAudioSession.isCannotStartPlayingError(error) else {
+                return
+            }
             engine.reset()
             engine.prepare()
             try? engine.start()

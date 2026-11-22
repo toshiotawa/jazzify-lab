@@ -2,6 +2,7 @@ import AVFoundation
 import Darwin
 import Foundation
 import os
+import UIKit
 
 final class DefenseBackingAudio: @unchecked Sendable {
     static let shared = DefenseBackingAudio()
@@ -48,7 +49,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var appAudioSessionObserver: NSObjectProtocol?
     private var engineConfigObserver: NSObjectProtocol?
     private var voicePolicyObserver: NSObjectProtocol?
+    private var didBecomeActiveObserver: NSObjectProtocol?
     private var playbackIntended = false
+    private var needsEngineResumeOnActive = false
 
     private init() {}
 
@@ -268,6 +271,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.preparedStage = nil
             self.transportStartHostSec = 0
             self.playbackIntended = false
+            self.needsEngineResumeOnActive = false
             os_unfair_lock_unlock(&self.lock)
         }
         if Thread.isMainThread {
@@ -411,8 +415,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
         playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
         applyMasterMixerVolume()
         if !engine.isRunning {
+            guard AppAudioSession.shared.canStartAudioEngine else {
+                playbackIntended = true
+                needsEngineResumeOnActive = true
+                return
+            }
             try engine.start()
         }
+        needsEngineResumeOnActive = false
         presentationLatency = playerA.outputPresentationLatency
         let transportStart = Self.hostTimeSec() + Self.startLeadSec
         let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: transportStart))
@@ -655,6 +665,15 @@ final class DefenseBackingAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.applyMasterMixerVolume()
         }
+        didBecomeActiveObserver = center.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            guard self.needsEngineResumeOnActive || (self.playbackIntended && !self.engine.isRunning) else { return }
+            self.restartEngineIfNeeded()
+        }
     }
 
     private func handleEngineConfigurationChange() {
@@ -676,9 +695,23 @@ final class DefenseBackingAudio: @unchecked Sendable {
         if engine.isRunning {
             engine.stop()
         }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            if shouldResume {
+                needsEngineResumeOnActive = true
+            }
+            return
+        }
+        needsEngineResumeOnActive = false
         ensureGraph()
         engine.prepare()
-        try? engine.start()
+        do {
+            try engine.start()
+        } catch {
+            if shouldResume, AppAudioSession.isCannotStartPlayingError(error) {
+                needsEngineResumeOnActive = true
+            }
+            return
+        }
         applyMasterMixerVolume()
         guard shouldResume, let buffer = activeBuffer else { return }
         let active = activeIsA ? playerA : playerB

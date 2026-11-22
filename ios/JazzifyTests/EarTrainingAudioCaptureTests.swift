@@ -1,8 +1,31 @@
 import AVFoundation
+import UIKit
 import XCTest
 @testable import Jazzify
 
 final class EarTrainingAudioCaptureTests: XCTestCase {
+    func testCanActivateAudioBlocksBackgroundState() {
+        XCTAssertFalse(AppAudioSession.canActivateAudio(applicationState: .background, isBackgrounded: false))
+        XCTAssertFalse(AppAudioSession.canActivateAudio(applicationState: .active, isBackgrounded: true))
+        XCTAssertFalse(AppAudioSession.canActivateAudio(applicationState: .inactive, isBackgrounded: true))
+        XCTAssertTrue(AppAudioSession.canActivateAudio(applicationState: .active, isBackgrounded: false))
+        XCTAssertTrue(AppAudioSession.canActivateAudio(applicationState: .inactive, isBackgrounded: false))
+    }
+
+    func testIsCannotStartPlayingErrorMatchesCode561015905() {
+        let cannotStartPlaying = NSError(
+            domain: NSOSStatusErrorDomain,
+            code: 561015905
+        )
+        let otherError = NSError(
+            domain: NSOSStatusErrorDomain,
+            code: -1
+        )
+        XCTAssertEqual(AVAudioSession.ErrorCode.cannotStartPlaying.rawValue, 561015905)
+        XCTAssertTrue(AppAudioSession.isCannotStartPlayingError(cannotStartPlaying))
+        XCTAssertFalse(AppAudioSession.isCannotStartPlayingError(otherError))
+    }
+
     func testPreferredHardwareSampleRateFallsBackWhenSessionRateIsZero() {
         XCTAssertEqual(EarTrainingAudio.preferredHardwareSampleRate(fromSessionSampleRate: 0), 48_000)
         XCTAssertEqual(EarTrainingAudio.preferredHardwareSampleRate(fromSessionSampleRate: -1), 48_000)

@@ -41,6 +41,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var appAudioSessionObserver: NSObjectProtocol?
     private var voicePolicyObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
+    /// バックグラウンド等で `engine.start()` をスキップしたときに立て、アクティブ復帰時に再開する。
+    private var needsEngineResumeOnActive = false
     /// `stop` / `rebuildGraph` 中の同期 ConfigurationChange で旧グラフを再startしない。
     private var isMutatingGraph = false
 
@@ -65,6 +67,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         )
         await MainActor.run {
             self.isStopping = true
+            self.needsEngineResumeOnActive = false
             self.isMutatingGraph = true
             defer { self.isMutatingGraph = false }
             self.detachPlaybackGraph(detachMasterMixer: true)
@@ -162,6 +165,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         let apply = { [weak self] in
             guard let self else { return }
             self.isStopping = true
+            self.needsEngineResumeOnActive = false
             self.isMutatingGraph = true
             defer { self.isMutatingGraph = false }
             self.sessionGeneration &+= 1
@@ -232,11 +236,12 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             self?.applyVoiceInputPlaybackGains()
         }
         foregroundObserver = center.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
+            forName: UIApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self, !self.isStopping, !self.isMutatingGraph else { return }
+            guard let self, !self.isStopping, !self.isMutatingGraph, self.mixerState != nil else { return }
+            guard self.needsEngineResumeOnActive || !self.engine.isRunning else { return }
             self.restartEngineIfNeeded()
         }
     }
@@ -347,8 +352,20 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
         sourcePlaybackFormat = sourceFormat
         applyMasterVolume()
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsEngineResumeOnActive = true
+            return
+        }
+        needsEngineResumeOnActive = false
         engine.prepare()
-        try? engine.start()
+        do {
+            try engine.start()
+        } catch {
+            if AppAudioSession.isCannotStartPlayingError(error) {
+                needsEngineResumeOnActive = true
+            }
+            return
+        }
         presentationLatency = sourceNode?.outputPresentationLatency ?? 0
     }
 
@@ -391,11 +408,20 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         if engine.isRunning {
             engine.stop()
         }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsEngineResumeOnActive = true
+            return
+        }
+        needsEngineResumeOnActive = false
         engine.prepare()
         do {
             try engine.start()
             applyMasterVolume()
         } catch {
+            if AppAudioSession.isCannotStartPlayingError(error) || !AppAudioSession.shared.canStartAudioEngine {
+                needsEngineResumeOnActive = true
+                return
+            }
             if let format = sourcePlaybackFormat {
                 rebuildGraph(sourceFormat: format)
             }

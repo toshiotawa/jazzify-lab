@@ -157,12 +157,14 @@ final class PitchInputEngine: @unchecked Sendable {
     private var lifecycleGeneration = 0
     private var restartPending = false
     private var restartRetryAttempt = 0
+    private var needsRestartOnActive = false
     private var observersRegistered = false
     private var routeChangeObserver: NSObjectProtocol?
     private var screenCaptureObserver: NSObjectProtocol?
     private var sessionReconfigureObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
+    private var didBecomeActiveObserver: NSObjectProtocol?
     private var engineConfigurationChangeObserver: NSObjectProtocol?
     private var restartWorkItem: DispatchWorkItem?
     private var activeTapSampleRate: Double = 0
@@ -488,13 +490,33 @@ final class PitchInputEngine: @unchecked Sendable {
 
         AppAudioSession.shared.setRecordingEnabled(true)
 
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            registerObserversIfNeeded()
+            needsRestartOnActive = true
+            return
+        }
+
         do {
             try await startEngineInternal(generation: generation)
             guard lifecycleGeneration == generation else { return }
             registerObserversIfNeeded()
             setMonitorError(nil)
+        } catch is CancellationError {
+            if needsRestartOnActive, lifecycleGeneration == generation {
+                registerObserversIfNeeded()
+                return
+            }
+            guard lifecycleGeneration == generation else { return }
+            AppAudioSession.shared.setRecordingEnabled(false)
+            clearExternalCaptureMode()
+            throw CancellationError()
         } catch {
             guard lifecycleGeneration == generation else { return }
+            if AppAudioSession.isCannotStartPlayingError(error) || !AppAudioSession.shared.canStartAudioEngine {
+                registerObserversIfNeeded()
+                needsRestartOnActive = true
+                return
+            }
             AppAudioSession.shared.setRecordingEnabled(false)
             clearExternalCaptureMode()
             setMonitorError(error.localizedDescription)
@@ -614,6 +636,14 @@ final class PitchInputEngine: @unchecked Sendable {
 
         registerEngineConfigurationObserver(for: engine)
 
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            unregisterEngineConfigurationObserver()
+            engine.disconnectNodeInput(sink)
+            engine.detach(sink)
+            needsRestartOnActive = true
+            throw CancellationError()
+        }
+
         engine.prepare()
         do {
             try engine.start()
@@ -690,6 +720,12 @@ final class PitchInputEngine: @unchecked Sendable {
             return
         }
 
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsRestartOnActive = true
+            return
+        }
+        needsRestartOnActive = false
+
         isStarting = true
         restartPending = false
         let generation = lifecycleGeneration
@@ -711,6 +747,10 @@ final class PitchInputEngine: @unchecked Sendable {
             return
         } catch {
             isRunning = false
+            if AppAudioSession.isCannotStartPlayingError(error) || !AppAudioSession.shared.canStartAudioEngine {
+                needsRestartOnActive = true
+                return
+            }
             setMonitorError(error.localizedDescription)
             scheduleRestartRetryIfNeeded(failureGeneration: generation)
         }
@@ -736,6 +776,7 @@ final class PitchInputEngine: @unchecked Sendable {
         lifecycleGeneration += 1
         restartPending = false
         restartRetryAttempt = 0
+        needsRestartOnActive = false
         restartWorkItem?.cancel()
         restartWorkItem = nil
         if isRunning || audioEngine != nil {
@@ -845,6 +886,18 @@ final class PitchInputEngine: @unchecked Sendable {
                 self?.scheduleRestartIfRunning()
             }
         }
+
+        didBecomeActiveObserver = center.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.needsRestartOnActive else { return }
+                self.needsRestartOnActive = false
+                self.scheduleRestartIfRunning()
+            }
+        }
     }
 
     @MainActor
@@ -872,6 +925,10 @@ final class PitchInputEngine: @unchecked Sendable {
         if let mediaServicesResetObserver {
             center.removeObserver(mediaServicesResetObserver)
             self.mediaServicesResetObserver = nil
+        }
+        if let didBecomeActiveObserver {
+            center.removeObserver(didBecomeActiveObserver)
+            self.didBecomeActiveObserver = nil
         }
     }
 
@@ -904,6 +961,12 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func scheduleRestartIfRunning() {
         guard isRunning || AppAudioSession.shared.isRecordingEnabled else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsRestartOnActive = true
+            restartWorkItem?.cancel()
+            restartWorkItem = nil
+            return
+        }
         restartWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             Task { @MainActor in

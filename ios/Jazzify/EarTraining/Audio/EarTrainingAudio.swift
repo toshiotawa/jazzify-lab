@@ -148,6 +148,7 @@ final class EarTrainingAudio: NSObject {
 
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
+    private var needsEngineResumeOnActive = false
     private var isDrumLoopActive = false
     /// `startDrumLoop` 開始時のホスト時刻（フレーズ未再生時の判定タイムライン用）。
     private var drumLoopAnchorHostTime: UInt64 = 0
@@ -195,6 +196,9 @@ final class EarTrainingAudio: NSObject {
         if let survivalCaptureObserver {
             NotificationCenter.default.removeObserver(survivalCaptureObserver)
         }
+        if let appAudioSessionObserver {
+            NotificationCenter.default.removeObserver(appAudioSessionObserver)
+        }
         stopTimeTicker()
         if engine.isRunning {
             engine.stop()
@@ -233,6 +237,7 @@ final class EarTrainingAudio: NSObject {
             engine.stop()
         }
         isPhraseEngineRunning = false
+        needsEngineResumeOnActive = false
     }
 
     // MARK: - Volume
@@ -993,7 +998,11 @@ final class EarTrainingAudio: NSObject {
         phraseMixer.outputVolume = phraseVolume
 
         if wasRunning || isPhraseEngineRunning {
-            try? engine.start()
+            if AppAudioSession.shared.canStartAudioEngine {
+                try? engine.start()
+            } else {
+                needsEngineResumeOnActive = true
+            }
         }
     }
 
@@ -1064,7 +1073,11 @@ final class EarTrainingAudio: NSObject {
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
 
         if wasRunning || isPhraseEngineRunning {
-            try? engine.start()
+            if AppAudioSession.shared.canStartAudioEngine {
+                try? engine.start()
+            } else {
+                needsEngineResumeOnActive = true
+            }
         }
     }
 
@@ -1116,7 +1129,11 @@ final class EarTrainingAudio: NSObject {
         drumMixer.outputVolume = phraseVolume
 
         if wasRunning || isPhraseEngineRunning {
-            try? engine.start()
+            if AppAudioSession.shared.canStartAudioEngine {
+                try? engine.start()
+            } else {
+                needsEngineResumeOnActive = true
+            }
         }
     }
 
@@ -1137,14 +1154,22 @@ final class EarTrainingAudio: NSObject {
 
     private func startPhraseEngineIfNeeded() {
         guard !engine.isRunning else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsEngineResumeOnActive = true
+            return
+        }
         do {
             engine.prepare()
             try engine.start()
             isPhraseEngineRunning = true
+            needsEngineResumeOnActive = false
             applyPhraseMixerVolumes()
             engine.mainMixerNode.outputVolume = 1.0
         } catch {
             isPhraseEngineRunning = false
+            if AppAudioSession.isCannotStartPlayingError(error) {
+                needsEngineResumeOnActive = true
+            }
         }
     }
 
@@ -1158,7 +1183,7 @@ final class EarTrainingAudio: NSObject {
             self?.handleEngineConfigurationChange()
         }
         foregroundObserver = center.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
+            forName: UIApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -1186,6 +1211,10 @@ final class EarTrainingAudio: NSObject {
         let resumeLoop = loopSessionActive
         let loopResumeTimelineSec = resumeLoop ? loopTimelineSecNowOrNil() : nil
         guard isPhraseEngineRunning || isDrumLoopActive || wasPhraseActive || resumeLoop else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsEngineResumeOnActive = true
+            return
+        }
 
         let resumeDrum = isDrumLoopActive
         let resumeTimelineSec = wasPhraseActive
@@ -1309,6 +1338,10 @@ final class EarTrainingAudio: NSObject {
 
     private func handleEngineConfigurationChange() {
         guard isPhraseEngineRunning || phrasePlayer.isPlaying || loopSessionActive else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsEngineResumeOnActive = true
+            return
+        }
         reconnectGraphAfterCaptureTransition()
         DispatchQueue.main.async { [weak self] in
             self?.resumePhraseEngineAfterForeground()
@@ -1319,7 +1352,13 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func resumePhraseEngineAfterForeground() {
-        guard isPhraseEngineRunning else { return }
+        guard isPhraseEngineRunning || needsEngineResumeOnActive else { return }
+        guard !engine.isRunning else {
+            needsEngineResumeOnActive = false
+            return
+        }
+        guard AppAudioSession.shared.canStartAudioEngine else { return }
+        needsEngineResumeOnActive = false
         startPhraseEngineIfNeeded()
         if isDrumLoopActive {
             startDrumLoop()

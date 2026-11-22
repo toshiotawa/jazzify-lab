@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import UIKit
 
 final class DefenseSharedProgressionAudio: @unchecked Sendable {
     static let shared = DefenseSharedProgressionAudio()
@@ -41,6 +42,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private var appAudioSessionObserver: NSObjectProtocol?
     private var engineConfigObserver: NSObjectProtocol?
     private var voicePolicyObserver: NSObjectProtocol?
+    private var didBecomeActiveObserver: NSObjectProtocol?
+    private var needsEngineResumeOnActive = false
 
     private init() {}
 
@@ -185,6 +188,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             let now = Self.hostTimeSec()
             self.pausedOffsetSec = max(0, now - self.transportStartHostSec)
             self.paused = true
+            self.needsEngineResumeOnActive = false
             self.generation &+= 1
             self.cancelWake()
             self.stopPlayers(resetTransport: false)
@@ -230,6 +234,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.cancelWake()
             self.stopPlayers(resetTransport: true)
             self.stage = nil
+            self.needsEngineResumeOnActive = false
             self.buffersByPhraseIndex.removeAll()
             self.barFramesByPhraseIndex.removeAll()
             if self.engine.isRunning {
@@ -354,11 +359,19 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
         do {
             if !engine.isRunning {
+                guard AppAudioSession.shared.canStartAudioEngine else {
+                    needsEngineResumeOnActive = true
+                    return
+                }
                 try engine.start()
             }
         } catch {
+            if AppAudioSession.isCannotStartPlayingError(error) {
+                needsEngineResumeOnActive = true
+            }
             return
         }
+        needsEngineResumeOnActive = false
 
         let now = Self.hostTimeSec()
         let start = max(now + Self.scheduleMinQuantumSec, startAtHostSec ?? (now + Self.startLeadSec))
@@ -410,11 +423,19 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
         do {
             if !engine.isRunning {
+                guard AppAudioSession.shared.canStartAudioEngine else {
+                    needsEngineResumeOnActive = true
+                    return
+                }
                 try engine.start()
             }
         } catch {
+            if AppAudioSession.isCannotStartPlayingError(error) {
+                needsEngineResumeOnActive = true
+            }
             return
         }
+        needsEngineResumeOnActive = false
 
         incoming.play()
         applyMasterVolume()
@@ -579,6 +600,15 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.applyMasterVolume()
         }
+        didBecomeActiveObserver = center.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.stage != nil, !self.paused else { return }
+            guard self.needsEngineResumeOnActive || !self.engine.isRunning else { return }
+            self.restartEngineIfNeeded()
+        }
     }
 
     private func handleEngineConfigurationChange() {
@@ -588,6 +618,12 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private func handleSharedAudioSessionReconfigure() {
         runOnMain { [weak self] in
             guard let self, self.stage != nil else { return }
+            guard AppAudioSession.shared.canStartAudioEngine else {
+                if !self.paused {
+                    self.needsEngineResumeOnActive = true
+                }
+                return
+            }
             let offset = max(0, Self.hostTimeSec() - self.transportStartHostSec)
             let phrase = self.audiblePhraseIndex
             let wasPaused = self.paused
@@ -605,6 +641,10 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private func restartEngineIfNeeded() {
         guard graphReady else { return }
         guard stage != nil, !paused else { return }
+        guard AppAudioSession.shared.canStartAudioEngine else {
+            needsEngineResumeOnActive = true
+            return
+        }
         let offset = max(0, Self.hostTimeSec() - transportStartHostSec)
         let phrase = audiblePhraseIndex
         let desired = desiredPhraseIndex

@@ -34,12 +34,39 @@ final class AppAudioSession {
     private var routeChangeObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
+    private var didEnterBackgroundObserver: NSObjectProtocol?
+    private var didBecomeActiveObserver: NSObjectProtocol?
     private var hasStarted = false
     private var recordingEnabled = false
+    private var isBackgrounded = false
+    private var pendingReconfigureOnActive = false
     /// この時刻まで routeChange 由来の自動再構成を抑制する（非同期配信の自己発火対策）。
     private var suppressAutomaticReconfigureUntil: CFTimeInterval = 0
 
     private init() {}
+
+    /// アプリがバックグラウンドにあるときは `AVAudioSession.setActive(true)` / `AVAudioEngine.start()` が
+    /// iOS により `561015905` (`AVAudioSessionErrorCodeCannotStartPlaying`) で拒否されるため抑制する。
+    static func canActivateAudio(applicationState: UIApplication.State, isBackgrounded: Bool) -> Bool {
+        !isBackgrounded && applicationState != .background
+    }
+
+    /// `AVAudioSessionErrorCodeCannotStartPlaying` (`561015905` / `'!pla'`) かどうか。
+    /// バックグラウンド等で OS が再生開始を拒否したエラーであり、即座のリトライは同じエラーを繰り返すだけになる。
+    static func isCannotStartPlayingError(_ error: Error) -> Bool {
+        (error as NSError).code == AVAudioSession.ErrorCode.cannotStartPlaying.rawValue
+    }
+
+    /// 現在オーディオセッションの有効化および `AVAudioEngine.start()` を実行してよいか。
+    var canStartAudioEngine: Bool {
+        guard Thread.isMainThread else {
+            return DispatchQueue.main.sync { self.canStartAudioEngine }
+        }
+        return Self.canActivateAudio(
+            applicationState: UIApplication.shared.applicationState,
+            isBackgrounded: isBackgrounded
+        )
+    }
 
     /// VPIO 有効化や setCategory 直前に呼び、自己誘発 routeChange による BGM 再構築連鎖を防ぐ。
     func suppressAutomaticReconfigure(for duration: TimeInterval = automaticReconfigureSuppression) {
@@ -123,6 +150,14 @@ final class AppAudioSession {
     func configure(force: Bool = false) -> Bool {
         guard Thread.isMainThread else {
             return DispatchQueue.main.sync { configure(force: force) }
+        }
+
+        guard Self.canActivateAudio(
+            applicationState: UIApplication.shared.applicationState,
+            isBackgrounded: isBackgrounded
+        ) else {
+            pendingReconfigureOnActive = true
+            return false
         }
 
         let session = AVAudioSession.sharedInstance()
@@ -222,6 +257,30 @@ final class AppAudioSession {
             queue: .main
         ) { [weak self] notification in
             self?.handleInterruption(notification)
+        }
+
+        didEnterBackgroundObserver = center.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.isBackgrounded = true
+            self.reconfigureWorkItem?.cancel()
+            self.reconfigureWorkItem = nil
+        }
+
+        didBecomeActiveObserver = center.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.isBackgrounded = false
+            guard self.pendingReconfigureOnActive else { return }
+            self.pendingReconfigureOnActive = false
+            let didChange = self.configure(force: true)
+            self.postReconfigureIfNeeded(didChange)
         }
     }
 
