@@ -124,14 +124,18 @@ export const planDefenseNextBarSwitch = (params: {
   readonly now: number;
   readonly transportStart: number;
   readonly barSec: number;
+  readonly minLeadSec?: number;
 }): DefenseSwitchPlan => {
-  const { now, transportStart, barSec } = params;
+  const { now, transportStart, barSec, minLeadSec = 0.015 } = params;
   if (barSec <= 0) {
     return { switchAt: now, immediate: true, cutAt: now };
   }
   const safeBarSec = Math.max(1e-6, barSec);
   const elapsed = Math.max(0, now - transportStart);
-  const cutAt = transportStart + (Math.floor(elapsed / safeBarSec) + 1) * safeBarSec;
+  let cutAt = transportStart + (Math.floor(elapsed / safeBarSec) + 1) * safeBarSec;
+  if (cutAt - now < minLeadSec) {
+    cutAt += safeBarSec;
+  }
   const remaining = cutAt - now;
   if (remaining < SCHEDULE_MIN_QUANTUM_SEC) {
     return { switchAt: now, immediate: true, cutAt };

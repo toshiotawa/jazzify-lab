@@ -350,7 +350,7 @@ class DefenseBackingDeck {
   ): number {
     this.cancelPendingSwitch();
     const graph = this.ensureGraph();
-    const now = defenseOutputTime(graph.ctx);
+    const now = graph.ctx.currentTime;
     const beatSec = this.barSec / Math.max(1, this.beatsPerBar);
     const plan = options?.forceNextBar
       ? planDefenseNextBarSwitch({

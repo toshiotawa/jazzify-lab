@@ -179,4 +179,54 @@ final class DefenseTransportTests: XCTestCase {
             accuracy: 0.0001
         )
     }
+
+    func testNextBarTargetPlayerSampleMidBar() {
+        let barFrames: Int64 = 44_100
+        let target = DefenseTransport.nextBarTargetPlayerSample(
+            currentPlayerSample: 30_000,
+            startOffsetFrames: 0,
+            barFrames: barFrames,
+            minLeadFrames: 0
+        )
+        XCTAssertEqual(target, barFrames)
+    }
+
+    func testNextBarTargetPlayerSampleNearBarEndUsesNextBar() {
+        let barFrames: Int64 = 44_100
+        let lead: Int64 = 661
+        let target = DefenseTransport.nextBarTargetPlayerSample(
+            currentPlayerSample: barFrames - 400,
+            startOffsetFrames: 0,
+            barFrames: barFrames,
+            minLeadFrames: lead
+        )
+        XCTAssertEqual(target, barFrames * 2)
+    }
+
+    func testNextBarTargetPlayerSampleWithOffset() {
+        let barFrames: Int64 = 22_050
+        let offset: Int64 = 5_000
+        let target = DefenseTransport.nextBarTargetPlayerSample(
+            currentPlayerSample: 10_000,
+            startOffsetFrames: offset,
+            barFrames: barFrames,
+            minLeadFrames: 0
+        )
+        XCTAssertEqual(target, barFrames - offset)
+    }
+
+    func testElapsedFromPlayerSampleNegativeHostDelta() {
+        XCTAssertEqual(
+            DefenseTransport.elapsedFromPlayerSample(
+                sampleTime: 44_100,
+                sampleRate: 44_100,
+                playbackRate: 1,
+                startOffsetSec: 0,
+                hostDeltaSec: -0.02,
+                presentationLatency: 0
+            ),
+            1.0 - 0.02,
+            accuracy: 0.001
+        )
+    }
 }

@@ -146,6 +146,21 @@ describe('defenseBackingDeck pending switch', () => {
     expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(0, 6);
   });
 
+  it('forceNextBar switch stays on ctx.currentTime axis with output latency', async () => {
+    const clock = { currentTime: 1, outputLatency: 0.1 };
+    installMockAudioContext(clock);
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    defenseBackingDeck.setTransportConfig(120, 4);
+    defenseBackingDeck.start({ ...playback(), barCount: 4, loopEnd: 8 });
+    clock.currentTime = 3.16;
+    const switchAt = defenseBackingDeck.scheduleSwitch(playback(), { forceNextBar: true });
+    expect(switchAt).toBeGreaterThanOrEqual(clock.currentTime);
+    expect(switchAt).toBeCloseTo(5.15, 6);
+    const incoming = startedSources[startedSources.length - 1];
+    const startCall = incoming.start.mock.calls[0];
+    expect(startCall[0]).toBeGreaterThanOrEqual(clock.currentTime);
+  });
+
   it('clears active transport and stops sources on clearTransportForRestart before endless restart', async () => {
     const clock = { currentTime: 5, outputLatency: 0 };
     installMockAudioContext(clock);

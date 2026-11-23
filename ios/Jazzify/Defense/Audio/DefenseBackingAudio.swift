@@ -56,8 +56,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private(set) var didSwitchGeneration: UInt64 = 0
     private(set) var audiblePhraseIndex = 0
     private var outgoingStopWorkItem: DispatchWorkItem?
+    private var oneFrameSilenceBuffer: AVAudioPCMBuffer?
 
     private static let startLeadSec = 0.15
+    private static let barSwitchMinLeadSec = 0.015
     private static let scheduleMinQuantumSec = 0.001
     private static let reconfigureLeadSec = 0.05
 
@@ -171,8 +173,11 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     func preparePhraseBuffers(stage: DefenseStageDefinition, phraseIndices: [Int]? = nil) async throws {
         os_unfair_lock_lock(&lock)
+        let sameStage = preparedStage?.id == stage.id
         preparedStage = stage
-        phraseBuffersByIndex.removeAll(keepingCapacity: true)
+        if !sameStage {
+            phraseBuffersByIndex.removeAll(keepingCapacity: true)
+        }
         os_unfair_lock_unlock(&lock)
         let indices = phraseIndices ?? Array(stage.phrases.indices)
         if stage.audioRegistrationMode == .singleSource {
@@ -486,6 +491,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
         engine.connect(timePitch, to: masterMixer, format: format)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
         applyTimePitchSettings()
+        oneFrameSilenceBuffer = nil
+        _ = ensureOneFrameSilence()
         graphReady = true
     }
 
@@ -494,6 +501,33 @@ final class DefenseBackingAudio: @unchecked Sendable {
         timePitch.rate = rate
         timePitch.pitch = 0
         timePitch.bypass = abs(rate - 1) < 0.0001
+        if graphReady, engine.isRunning {
+            refreshPresentationLatency(from: activePlayer())
+        }
+    }
+
+    private func effectivePresentationLatency(for player: AVAudioPlayerNode) -> TimeInterval {
+        let raw = player.outputPresentationLatency
+        if timePitch.bypass {
+            return max(0, raw - max(0, timePitch.latency))
+        }
+        return max(0, raw)
+    }
+
+    private func refreshPresentationLatency(from player: AVAudioPlayerNode) {
+        presentationLatency = effectivePresentationLatency(for: player)
+    }
+
+    @discardableResult
+    private func ensureOneFrameSilence() -> AVAudioPCMBuffer? {
+        if let oneFrameSilenceBuffer {
+            return oneFrameSilenceBuffer
+        }
+        guard let format = deckFormat else { return nil }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1) else { return nil }
+        buffer.frameLength = 1
+        oneFrameSilenceBuffer = buffer
+        return buffer
     }
 
     private func bufferMatchingDeckFormat(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
@@ -637,7 +671,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         playerA.stop()
         playerA.reset()
         playerA.scheduleBuffer(outputBuffer, at: nil, options: [.loops])
-        presentationLatency = playerA.outputPresentationLatency
+        refreshPresentationLatency(from: playerA)
         let transportStart = Self.hostTimeSec() + Self.startLeadSec
         let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: transportStart))
         playerA.play(at: when)
@@ -657,6 +691,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let bpmSnapshot = bpm
         let beatsSnapshot = beatsPerBar
         let transportStart = transportStartHostSec
+        let startOffsetSec = activePlayerStartOffsetSec
         os_unfair_lock_unlock(&lock)
         guard !isPaused else { return 0 }
 
@@ -665,17 +700,39 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let now = Self.hostTimeSec()
         let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
         let beatSec = barSec / Double(max(1, beatsSnapshot))
-        let audibleNow = audibleElapsedSec(now: now)
-            ?? (transportStart > 0
-                ? DefenseTransport.elapsedFromTransport(
-                    hostNow: now,
-                    presentationLatency: presentationLatency,
-                    transportStart: transportStart
-                )
-                : 0)
-        let effectiveTransportStart = transportStart > 0
-            ? DefenseTransport.transportStartFromAudibleElapsed(hostNow: now, audibleElapsedSec: audibleNow)
-            : transportStart
+        let outgoing = activeIsA ? playerA : playerB
+        let outputBuffer = bufferMatchingDeckFormat(buffer)
+        let incoming = activeIsA ? playerB : playerA
+        if activeIsA {
+            sourceBufferB = buffer
+            bufferB = outputBuffer
+        } else {
+            sourceBufferA = buffer
+            bufferA = outputBuffer
+        }
+        incoming.stop()
+        incoming.reset()
+
+        if forceNextBar, let outgoingBuffer = activeIsA ? bufferA : bufferB,
+           let scheduledMs = scheduleSampleExactBarPhraseSwitch(
+            outputBuffer: outputBuffer,
+            outgoingBuffer: outgoingBuffer,
+            incoming: incoming,
+            outgoing: outgoing,
+            phraseIndex: phraseIndex,
+            startOffsetSec: startOffsetSec
+           ) {
+            return scheduledMs
+        }
+
+        let effectiveTransportStart: Double
+        if let renderStart = renderClockTransportStart(for: outgoing, startOffsetSec: startOffsetSec) {
+            effectiveTransportStart = renderStart
+        } else if transportStart > 0 {
+            effectiveTransportStart = transportStart
+        } else {
+            effectiveTransportStart = now
+        }
         let plan: DefenseSwitchPlan
         if forceNextBar {
             let switchAt = DefenseTransport.planNextBarSwitch(
@@ -693,18 +750,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
             )
         }
         var switchAt = plan.switchAt
-        let outputBuffer = bufferMatchingDeckFormat(buffer)
-        let incoming = activeIsA ? playerB : playerA
-        let outgoing = activeIsA ? playerA : playerB
-        if activeIsA {
-            sourceBufferB = buffer
-            bufferB = outputBuffer
-        } else {
-            sourceBufferA = buffer
-            bufferA = outputBuffer
-        }
-        incoming.stop()
-        incoming.reset()
 
         let playbackWhen: AVAudioTime
         if plan.immediate {
@@ -735,6 +780,74 @@ final class DefenseBackingAudio: @unchecked Sendable {
         )
 
         return Int64((switchAt * 1_000).rounded())
+    }
+
+    private func renderClockTransportStart(
+        for player: AVAudioPlayerNode,
+        startOffsetSec: Double
+    ) -> Double? {
+        guard let nodeTime = player.lastRenderTime,
+              let playerTime = player.playerTime(forNodeTime: nodeTime),
+              playerTime.sampleTime >= 0 else {
+            return nil
+        }
+        let rate = playbackRateFactor()
+        let renderedSec = Double(playerTime.sampleTime) / (playerTime.sampleRate * rate)
+        let nodeHostSec = AVAudioTime.seconds(forHostTime: nodeTime.hostTime)
+        return nodeHostSec - (startOffsetSec + renderedSec)
+    }
+
+    private func scheduleSampleExactBarPhraseSwitch(
+        outputBuffer: AVAudioPCMBuffer,
+        outgoingBuffer: AVAudioPCMBuffer,
+        incoming: AVAudioPlayerNode,
+        outgoing: AVAudioPlayerNode,
+        phraseIndex: Int?,
+        startOffsetSec: Double
+    ) -> Int64? {
+        guard let nodeTime = outgoing.lastRenderTime,
+              let playerTime = outgoing.playerTime(forNodeTime: nodeTime),
+              playerTime.sampleTime >= 0 else {
+            return nil
+        }
+        let sampleRate = playerTime.sampleRate
+        guard sampleRate > 0, outgoingBuffer.frameLength > 0 else { return nil }
+
+        let barFrames = Int64(outgoingBuffer.frameLength) / Int64(max(1, currentBarCount))
+        guard barFrames > 0 else { return nil }
+
+        let rate = playbackRateFactor()
+        let startOffsetFrames = Int64((startOffsetSec * sampleRate * rate).rounded())
+        let minLeadFrames = Int64((sampleRate * Self.barSwitchMinLeadSec).rounded())
+        let targetSample = DefenseTransport.nextBarTargetPlayerSample(
+            currentPlayerSample: playerTime.sampleTime,
+            startOffsetFrames: startOffsetFrames,
+            barFrames: barFrames,
+            minLeadFrames: minLeadFrames
+        )
+
+        let targetPlayerTime = AVAudioTime(sampleTime: targetSample, atRate: sampleRate)
+        guard let switchNodeTime = outgoing.nodeTime(forPlayerTime: targetPlayerTime) else {
+            return nil
+        }
+        guard let silence = ensureOneFrameSilence() else { return nil }
+
+        outgoing.scheduleBuffer(silence, at: targetPlayerTime, options: [.interrupts])
+        incoming.scheduleBuffer(outputBuffer, at: nil, options: [.loops])
+        incoming.play(at: switchNodeTime)
+
+        let switchAtHostSec = AVAudioTime.seconds(forHostTime: switchNodeTime.hostTime)
+        scheduleOutgoingStop(
+            outgoing: outgoing,
+            atHostSec: switchAtHostSec,
+            transportStartAfter: switchAtHostSec,
+            phraseIndex: phraseIndex,
+            immediate: false,
+            overshootSec: 0,
+            cleanupAtHostSec: switchAtHostSec + Self.barSwitchMinLeadSec
+        )
+
+        return Int64((switchAtHostSec * 1_000).rounded())
     }
 
     private func cancelOutgoingStopWork() {
@@ -803,7 +916,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             playbackRate: Double(desiredPlaybackRate)
         )
         active.play(at: when)
-        presentationLatency = active.outputPresentationLatency
+        refreshPresentationLatency(from: active)
 
         os_unfair_lock_lock(&lock)
         transportStartHostSec = DefenseTransport.transportStartForResume(
@@ -861,7 +974,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
         transportStartAfter: Double,
         phraseIndex: Int?,
         immediate: Bool,
-        overshootSec: Double
+        overshootSec: Double,
+        cleanupAtHostSec: Double? = nil
     ) {
         cancelOutgoingStopWork()
         pendingOutgoingSwitch = PendingOutgoingSwitch(
@@ -871,7 +985,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
             immediate: immediate,
             overshootSec: overshootSec
         )
-        let delay = max(0, atHostSec - Self.hostTimeSec())
+        let runAt = cleanupAtHostSec ?? atHostSec
+        let delay = max(0, runAt - Self.hostTimeSec())
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
             os_unfair_lock_lock(&self.lock)
@@ -1250,7 +1365,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             playbackRate: Double(desiredPlaybackRate)
         )
         active.play(at: when)
-        presentationLatency = active.outputPresentationLatency
+        refreshPresentationLatency(from: active)
         os_unfair_lock_lock(&lock)
         transportStartHostSec = resumeAt - targetElapsed
         activePlayerStartOffsetSec = targetElapsed

@@ -127,6 +127,21 @@ enum DefenseTransport {
         Int64((0.05 * sampleRate).rounded()) + Int64(renderQuantum * 2)
     }
 
+    /// Next bar boundary on the player sample timeline (includes `startOffsetFrames` and optional lead).
+    static func nextBarTargetPlayerSample(
+        currentPlayerSample: Int64,
+        startOffsetFrames: Int64,
+        barFrames: Int64,
+        minLeadFrames: Int64 = 0
+    ) -> Int64 {
+        guard barFrames > 0 else { return max(0, currentPlayerSample) }
+        let safeCurrent = max(0, currentPlayerSample)
+        let floorTotal = startOffsetFrames + safeCurrent + minLeadFrames
+        let nextBarIndex = floor(Double(floorTotal) / Double(barFrames)) + 1
+        let targetTotal = Int64((nextBarIndex * Double(barFrames)).rounded())
+        return targetTotal - startOffsetFrames
+    }
+
     /// Audible elapsed time since transport start (matches Listen/Play bar math).
     static func elapsedFromTransport(
         hostNow: Double,
@@ -167,7 +182,7 @@ enum DefenseTransport {
         let safeRate = max(0.1, playbackRate)
         let safeSampleRate = max(1.0, sampleRate)
         let renderedSec = Double(sampleTime) / (safeSampleRate * safeRate)
-        let delta = max(0, min(0.1, hostDeltaSec))
+        let delta = max(-0.1, min(0.1, hostDeltaSec))
         return max(0, startOffsetSec + renderedSec + delta - max(0, presentationLatency))
     }
 

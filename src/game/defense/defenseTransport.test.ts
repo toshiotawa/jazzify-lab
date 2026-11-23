@@ -98,4 +98,16 @@ describe('defenseTransport', () => {
     expect(plan.immediate).toBe(false);
     expect(plan.switchAt).toBeCloseTo(12);
   });
+
+  it('planDefenseNextBarSwitch skips bar when inside min lead', () => {
+    const plan = planDefenseNextBarSwitch({
+      now: 5.14,
+      transportStart: 1.15,
+      barSec: 2,
+      minLeadSec: 0.015,
+    });
+    expect(plan.immediate).toBe(false);
+    expect(plan.switchAt).toBeCloseTo(7.15);
+    expect(plan.switchAt).toBeGreaterThan(5.14);
+  });
 });
