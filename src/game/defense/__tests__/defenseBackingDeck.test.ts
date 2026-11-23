@@ -136,6 +136,25 @@ describe('defenseBackingDeck pending switch', () => {
     expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(0, 6);
   });
 
+  it('clears active transport and stops sources on clearTransportForRestart before endless restart', async () => {
+    const clock = { currentTime: 5, outputLatency: 0 };
+    installMockAudioContext(clock);
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    defenseBackingDeck.setTransportConfig(120, 4);
+    defenseBackingDeck.start({ ...playback(), barCount: 4, loopEnd: 8 });
+    const firstSource = startedSources[startedSources.length - 1];
+    clock.currentTime = 10.25;
+    expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(5.1, 6);
+
+    defenseBackingDeck.clearTransportForRestart();
+    expect(firstSource.stop).toHaveBeenCalled();
+    expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeNull();
+
+    defenseBackingDeck.start({ ...playback(), barCount: 4, loopEnd: 8 });
+    clock.currentTime = 10.40; // 0.15s start lead elapsed -> exactly bar 0 (Listen)
+    expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(0, 6);
+  });
+
   it('falls back to bundled local sozai path when CDN returns 404', async () => {
     installMockAudioContext();
     const { fetchCachedFullAudioBuffer } = await import('@/utils/audioFetchCache');

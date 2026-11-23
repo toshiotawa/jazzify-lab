@@ -638,6 +638,29 @@ final class DefenseGameSession: ObservableObject {
         if evaluation.measureCompleted, stage.attackTrigger == .note, !isChordVoicingStage {
             _ = DefenseGameLoop.chargeSp(runtime: &runtime)
         }
+        if runtime.awaitingEndlessChoice {
+            if !practiceMode, evaluation.pendingSwitch {
+                if isChordVoicingStage, let keyState = voicingKeyState {
+                    applyVoicingKeyState(DefenseVoicingKeys.advanceKeyState(keyState))
+                    return
+                }
+                let nextIndex = DefensePhraseJudge.nextPhraseIndex(
+                    phrases: stage.phrases,
+                    current: judgeState.phraseIndex
+                )
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(
+                    nextIndex,
+                    phrases: activePhrases,
+                    lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass
+                )
+            }
+            if callResponseConfig != nil, !isSharedProgressionStage, !isSeparateTracksStage {
+                pendingSwitchPhraseIndex = nil
+                callResponseTransitionWaitUntilHostSec = nil
+                DefenseBackingAudio.shared.invalidatePendingSwitch()
+            }
+            return
+        }
         if !practiceMode, evaluation.pendingSwitch {
             if isChordVoicingStage, let keyState = voicingKeyState {
                 applyVoicingKeyState(DefenseVoicingKeys.advanceKeyState(keyState))
@@ -758,6 +781,8 @@ final class DefenseGameSession: ObservableObject {
                     pendingSwitchPhraseIndex = nil
                 }
                 callResponseTransitionWaitUntilHostSec = nil
+                lastCallResponseLoopIndex = 0
+                lastCallResponsePhase = .call
                 syncEffectiveProgressionChords(phraseIndex: switchedToIndex)
                 let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
                     phrases: stage.phrases,
@@ -788,6 +813,11 @@ final class DefenseGameSession: ObservableObject {
                 playerMaxHp: runtime.playerMaxHp
             )
             stageClearStarRank = starRank
+            if callResponseConfig != nil, !isSharedProgressionStage, !isSeparateTracksStage {
+                pendingSwitchPhraseIndex = nil
+                callResponseTransitionWaitUntilHostSec = nil
+                DefenseBackingAudio.shared.invalidatePendingSwitch()
+            }
             pauseAllBackingAudio()
             let surviveSecAtClear = Int(runtime.elapsedSec.rounded(.down))
             let enemiesAtClear = runtime.enemiesDefeated
@@ -936,7 +966,46 @@ final class DefenseGameSession: ObservableObject {
             runtime.waveIndex = DefenseCallResponseCombat.endlessWaveIndex
             runtime.waveSpawnCount = 0
             runtime.endlessElapsedSec = 0
-            resumeAllBackingAudio()
+            if callResponseConfig != nil, !isSharedProgressionStage, !isSeparateTracksStage {
+                let targetPhraseIndex = judgeState.phraseIndex
+                let reset = DefensePhraseJudge.resetProgressForNextCycle(judgeState)
+                if reset != judgeState {
+                    judgeState = reset
+                }
+                pendingSwitchPhraseIndex = nil
+                callResponseTransitionWaitUntilHostSec = nil
+                lastCallResponsePhase = .call
+                lastCallResponseLoopIndex = 0
+                runtime.enemyBehavior = .dance
+                runtime.callResponseCue = .listen
+                runtime.danceBeatPhase = 0
+                syncEffectiveProgressionChords(phraseIndex: targetPhraseIndex)
+
+                let startedSync = DefenseBackingAudio.shared.restartPhraseFromBeginningIfCached(at: targetPhraseIndex)
+                lastSwitchGeneration = DefenseBackingAudio.shared.didSwitchGeneration
+                if !startedSync {
+                    let generation = startGeneration
+                    Task { [weak self] in
+                        guard let self else { return }
+                        try? await DefenseBackingAudio.shared.startPhrase(at: targetPhraseIndex)
+                        guard generation == self.startGeneration else { return }
+                        self.lastSwitchGeneration = DefenseBackingAudio.shared.didSwitchGeneration
+                        self.syncEffectiveProgressionChords(phraseIndex: targetPhraseIndex)
+                    }
+                }
+                let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
+                    phrases: stage.phrases,
+                    current: targetPhraseIndex
+                )
+                let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: [preloadIndex])
+                if !preloadUrls.isEmpty {
+                    Task {
+                        try? await DefenseBackingAudio.shared.preload(urls: preloadUrls)
+                    }
+                }
+            } else {
+                resumeAllBackingAudio()
+            }
         } else {
             runtime.result = .clear
             if !resultHandled {

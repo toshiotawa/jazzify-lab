@@ -431,6 +431,11 @@ class DefenseBackingDeck {
     }
   }
 
+  clearTransportForRestart(): void {
+    this.stopInternal(false);
+    this.transportStart = 0;
+  }
+
   pause(): void {
     const ctx = this.graph?.ctx;
     if (ctx && ctx.state === 'running') {

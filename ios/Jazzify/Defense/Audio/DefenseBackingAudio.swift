@@ -305,6 +305,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 transportStart: transportStart
             )
 
+            self.switchScheduleToken &+= 1
             os_unfair_lock_lock(&self.lock)
             self.pausedPlaybackElapsedSec = elapsed
             self.pauseStartedHostSec = now
@@ -328,6 +329,45 @@ final class DefenseBackingAudio: @unchecked Sendable {
         } else {
             DispatchQueue.main.sync(execute: apply)
         }
+    }
+
+    /// Restarts `phraseIndex` cleanly from bar 0 (Listen head) synchronously when its buffer is cached.
+    /// Returns `false` if the phrase buffer is not yet cached (callers should follow up with `startPhrase(at:)`).
+    @discardableResult
+    func restartPhraseFromBeginningIfCached(at index: Int) -> Bool {
+        var started = false
+        let apply = { [weak self] in
+            guard let self else { return }
+            os_unfair_lock_lock(&self.lock)
+            let cached = self.phraseBuffersByIndex[index]
+            os_unfair_lock_unlock(&self.lock)
+            let fallbackCurrent: AVAudioPCMBuffer? = (index == self.audiblePhraseIndex)
+                ? (self.activeIsA ? self.sourceBufferA : self.sourceBufferB)
+                : nil
+            guard let buffer = cached ?? fallbackCurrent else {
+                self.switchScheduleToken &+= 1
+                self.clearPendingOutgoingSwitch()
+                os_unfair_lock_lock(&self.lock)
+                self.pausedPlaybackElapsedSec = 0
+                os_unfair_lock_unlock(&self.lock)
+                return
+            }
+            self.synthesizedTutorialConcertMidis = nil
+            self.currentBarCount = self.barCount(for: index)
+            self.audiblePhraseIndex = index
+            do {
+                try self.startEngine(with: buffer)
+                started = true
+            } catch {
+                started = false
+            }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
+        return started
     }
 
     /// Returns host-time delta spent paused (for shifting absolute host deadlines).
@@ -557,8 +597,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {
         ensureGraph()
         stopPlayersAndResetPending()
-        cancelOutgoingStopWork()
+        clearPendingOutgoingSwitch()
         switchScheduleToken &+= 1
+        os_unfair_lock_lock(&lock)
+        pausedPlaybackElapsedSec = nil
+        pauseStartedHostSec = nil
+        pausedAtHostSec = nil
+        needsRescheduleOnResume = false
+        os_unfair_lock_unlock(&lock)
         activeIsA = true
         let outputBuffer = bufferMatchingDeckFormat(buffer)
         sourceBufferA = buffer
@@ -567,12 +613,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
         bufferB = nil
         playerA.scheduleBuffer(outputBuffer, at: nil, options: [.loops])
         applyMasterMixerVolume()
+        applyTimePitchSettings()
         if !engine.isRunning {
             guard AppAudioSession.shared.canStartAudioEngine else {
                 playbackIntended = true
                 needsEngineResumeOnActive = true
                 return
             }
+            engine.prepare()
             try engine.start()
         }
         needsEngineResumeOnActive = false
@@ -591,12 +639,15 @@ final class DefenseBackingAudio: @unchecked Sendable {
         phraseIndex: Int? = nil,
         forceNextBar: Bool = false
     ) -> Int64 {
-        clearPendingOutgoingSwitch()
         os_unfair_lock_lock(&lock)
+        let isPaused = pausedPlaybackElapsedSec != nil || pausedAtHostSec != nil
         let bpmSnapshot = bpm
         let beatsSnapshot = beatsPerBar
         let transportStart = transportStartHostSec
         os_unfair_lock_unlock(&lock)
+        guard !isPaused else { return 0 }
+
+        clearPendingOutgoingSwitch()
 
         let now = Self.hostTimeSec()
         let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
@@ -674,14 +725,11 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     private func rebuildActiveBuffersForResumeIfNeeded() {
-        guard let native = activeIsA ? sourceBufferA : sourceBufferB else { return }
-        let rebuilt = bufferMatchingDeckFormat(native)
-        if activeIsA {
-            sourceBufferA = native
-            bufferA = rebuilt
-        } else {
-            sourceBufferB = native
-            bufferB = rebuilt
+        if let nativeA = sourceBufferA {
+            bufferA = bufferMatchingDeckFormat(nativeA)
+        }
+        if let nativeB = sourceBufferB {
+            bufferB = bufferMatchingDeckFormat(nativeB)
         }
     }
 
@@ -738,8 +786,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
         )
         os_unfair_lock_unlock(&lock)
 
-        if let pending, let switchRemaining, switchRemaining > 0 {
-            let newSwitchAt = resumeAt + switchRemaining
+        if let pending, let switchRemaining {
+            let effectiveRemaining = max(Self.scheduleMinQuantumSec, switchRemaining)
+            let newSwitchAt = resumeAt + effectiveRemaining
             let cutOffset = pending.switchAtHostSec - pending.transportStartAfterHostSec
             let newCutAt = newSwitchAt - cutOffset
             let incoming = activeIsA ? playerB : playerA
@@ -764,13 +813,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 incoming.scheduleBuffer(incomingBuffer, at: nil, options: [.loops])
             }
             incoming.play(at: playbackWhen)
-            pendingOutgoingSwitch = PendingOutgoingSwitch(
-                switchAtHostSec: newSwitchAt,
-                transportStartAfterHostSec: newCutAt,
-                phraseIndex: pending.phraseIndex,
-                immediate: pending.immediate,
-                overshootSec: pending.overshootSec
-            )
             pendingSwitchRemainingSec = nil
             scheduleOutgoingStop(
                 outgoing: outgoing,
@@ -794,6 +836,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         immediate: Bool,
         overshootSec: Double
     ) {
+        cancelOutgoingStopWork()
         pendingOutgoingSwitch = PendingOutgoingSwitch(
             switchAtHostSec: atHostSec,
             transportStartAfterHostSec: transportStartAfter,
@@ -804,6 +847,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let delay = max(0, atHostSec - Self.hostTimeSec())
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            os_unfair_lock_lock(&self.lock)
+            let isPaused = self.pausedPlaybackElapsedSec != nil || self.pausedAtHostSec != nil
+            os_unfair_lock_unlock(&self.lock)
+            guard !isPaused else { return }
             outgoing.stop()
             outgoing.reset()
             if self.activeIsA {
@@ -1037,13 +1084,21 @@ final class DefenseBackingAudio: @unchecked Sendable {
             if activeIsA {
                 bufferA = rebuiltOutput
                 sourceBufferA = rebuiltSource
-                bufferB = nil
-                sourceBufferB = nil
+                if pausedAt == nil || pendingOutgoingSwitch == nil {
+                    bufferB = nil
+                    sourceBufferB = nil
+                } else if let pendingNative = sourceBufferB {
+                    bufferB = bufferMatchingDeckFormat(pendingNative)
+                }
             } else {
                 bufferB = rebuiltOutput
                 sourceBufferB = rebuiltSource
-                bufferA = nil
-                sourceBufferA = nil
+                if pausedAt == nil || pendingOutgoingSwitch == nil {
+                    bufferA = nil
+                    sourceBufferA = nil
+                } else if let pendingNative = sourceBufferA {
+                    bufferA = bufferMatchingDeckFormat(pendingNative)
+                }
             }
         }
 

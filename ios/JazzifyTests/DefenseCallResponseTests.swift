@@ -528,6 +528,56 @@ final class DefenseCallResponseTests: XCTestCase {
         let layout = DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: .advanced)
         XCTAssertEqual(layout.stageNodes.map(\.id), [stage11Id, stage12Id, stage21Id])
     }
+
+    func testEndlessRestartStartsCleanlyOnListenBar0AndTracks1c3rCycle() {
+        let startLead = 0.15
+        let startAt = 200.0 + startLead
+        let latency = 0.02
+
+        // During start lead (before audio bar 0 begins): elapsed clamps to 0 -> Listen (bar 0).
+        let beforeStartElapsed = DefenseTransport.elapsedFromTransport(
+            hostNow: 200.05,
+            presentationLatency: latency,
+            transportStart: startAt
+        )
+        let beforeSnap = DefenseCallResponse.resolve(
+            config: config4x1x3,
+            elapsedFromPhraseStartSec: beforeStartElapsed,
+            barSec: barSec,
+            beatsPerBar: beatsPerBar,
+            transitionWaitUntilElapsedSec: nil
+        )
+        XCTAssertEqual(beforeSnap.phase, .call)
+        XCTAssertEqual(beforeSnap.cue, .listen)
+        XCTAssertEqual(beforeSnap.barIndexInLoop, 0)
+        XCTAssertEqual(beforeSnap.loopIndex, 0)
+
+        // Bar 0..3 -> Listen, Play, Play, Play; Bar 4 -> Listen (loopIndex 1).
+        let expectations: [(Double, DefenseCallResponseCue, Int, Int)] = [
+            (0.1, .listen, 0, 0),
+            (2.1, .play, 1, 0),
+            (4.1, .play, 2, 0),
+            (6.1, .play, 3, 0),
+            (8.1, .listen, 0, 1),
+        ]
+        for (offsetSec, expectedCue, expectedBarInLoop, expectedLoop) in expectations {
+            let elapsed = DefenseTransport.elapsedFromTransport(
+                hostNow: startAt + latency + offsetSec,
+                presentationLatency: latency,
+                transportStart: startAt
+            )
+            let snap = DefenseCallResponse.resolve(
+                config: config4x1x3,
+                elapsedFromPhraseStartSec: elapsed,
+                barSec: barSec,
+                beatsPerBar: beatsPerBar,
+                transitionWaitUntilElapsedSec: nil
+            )
+            XCTAssertEqual(snap.cue, expectedCue)
+            XCTAssertEqual(snap.barIndexInLoop, expectedBarInLoop)
+            XCTAssertEqual(snap.loopIndex, expectedLoop)
+        }
+    }
 }
 
 private extension DefenseStageDefinition {
