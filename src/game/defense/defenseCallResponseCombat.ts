@@ -220,7 +220,10 @@ export const applyDefenseCallResponseDifficulty = (
   ),
 });
 
-export { resolveDefenseCallResponseGuardedDifficulty } from '@/game/defense/defenseCallResponseClearGuard';
+export {
+  resolveDefenseCallResponseGuardedDifficulty,
+  resolveDefenseEndlessAccelCap,
+} from '@/game/defense/defenseCallResponseClearGuard';
 export {
   computeDefenseEndlessAccel,
   computeDefenseStarRank,

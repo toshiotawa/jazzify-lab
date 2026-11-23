@@ -151,4 +151,28 @@ enum DefenseTransport {
         let safeBarSec = max(1e-6, barSec)
         return Int(floor(max(0, elapsedFromTransportSec) / safeBarSec))
     }
+
+    /// Audible phrase position from `AVAudioPlayerNode.playerTime` (loop timeline includes `startOffsetSec`).
+    static func elapsedFromPlayerSample(
+        sampleTime: Int64,
+        sampleRate: Double,
+        playbackRate: Double,
+        startOffsetSec: Double,
+        hostDeltaSec: Double,
+        presentationLatency: Double
+    ) -> Double {
+        if sampleTime < 0 {
+            return max(0, startOffsetSec)
+        }
+        let safeRate = max(0.1, playbackRate)
+        let safeSampleRate = max(1.0, sampleRate)
+        let renderedSec = Double(sampleTime) / (safeSampleRate * safeRate)
+        let delta = max(0, min(0.1, hostDeltaSec))
+        return max(0, startOffsetSec + renderedSec + delta - max(0, presentationLatency))
+    }
+
+    /// Reconstruct transport origin from audible elapsed at `hostNow` (bar-head scheduling).
+    static func transportStartFromAudibleElapsed(hostNow: Double, audibleElapsedSec: Double) -> Double {
+        hostNow - max(0, audibleElapsedSec)
+    }
 }

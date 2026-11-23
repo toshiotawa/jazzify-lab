@@ -46,6 +46,7 @@ final class DefenseGameSession: ObservableObject {
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
     private var effectiveDifficulty: DefenseDifficultyDefinition
+    private let endlessAccelCap: DefenseCallResponseTier.EndlessAccelCap?
     private(set) var usesCallResponseTierPath = false
     private let playMapNodeId: UUID?
     let practiceMode: Bool
@@ -129,6 +130,13 @@ final class DefenseGameSession: ObservableObject {
         )
         self.effectiveDifficulty = resolved.difficulty
         self.usesCallResponseTierPath = resolved.usesTierPath
+        self.endlessAccelCap = resolved.usesTierPath
+            ? DefenseCallResponseClearGuard.resolveEndlessAccelCap(
+                stage: stage,
+                phrases: initialActivePhrases,
+                difficulty: resolved.difficulty
+            )
+            : nil
         self.practiceMode = practiceMode
         self.tutorialOptions = tutorialOptions
         self.tutorialConcertMidis = tutorialConcertMidis
@@ -397,6 +405,19 @@ final class DefenseGameSession: ObservableObject {
         }
         phase = .playing
         PlayLaunchTiming.end("DefensePlay")
+
+        if tutorialOptions == nil, !isSharedProgressionStage, !isSeparateTracksStage {
+            let stageSnapshot = stage
+            Task.detached(priority: .utility) {
+                let indices = Array(stageSnapshot.phrases.indices)
+                let urls = DefensePhraseBacking.preloadUrls(for: stageSnapshot, phraseIndices: indices)
+                try? await DefenseBackingAudio.shared.preload(urls: urls)
+                try? await DefenseBackingAudio.shared.preparePhraseBuffers(
+                    stage: stageSnapshot,
+                    phraseIndices: indices
+                )
+            }
+        }
     }
 
     func stepPhrase(_ delta: Int) {
@@ -925,7 +946,12 @@ final class DefenseGameSession: ObservableObject {
 
         if runtime.endlessMode, snapshot.phase == .response {
             runtime.endlessElapsedSec += deltaTime
-            let accel = DefenseCallResponseTier.endlessAccel(elapsedSec: runtime.endlessElapsedSec)
+            let accel: DefenseCallResponseTier.EndlessAccel
+            if let cap = endlessAccelCap {
+                accel = DefenseCallResponseTier.endlessAccel(elapsedSec: runtime.endlessElapsedSec, cap: cap)
+            } else {
+                accel = DefenseCallResponseTier.endlessAccel(elapsedSec: runtime.endlessElapsedSec)
+            }
             runtime.endlessSpeedMult = accel.speedMult
             runtime.endlessSpawnMult = accel.spawnMult
             runtime.endlessHpMult = accel.hpMult

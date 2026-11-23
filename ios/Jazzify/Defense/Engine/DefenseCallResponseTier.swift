@@ -178,6 +178,43 @@ enum DefenseCallResponseTier {
         let hpMult: Double
     }
 
+    struct EndlessAccelCap: Equatable, Sendable {
+        let maxSpeedMult: Double
+        let maxSpawnMult: Double
+        let maxHpMult: Double
+        let startSpeedMult: Double
+
+        static let targetMaxSpeedMult = 1.65
+        static let targetMaxSpawnMult = 1.65
+        static let targetMaxHpMult = 1.40
+        static let accelTimeConstantSec = 90.0
+
+        static func scaled(maxScale: Double, startSpeedMult: Double = 1) -> EndlessAccelCap {
+            let scale = min(1, max(0, maxScale))
+            return EndlessAccelCap(
+                maxSpeedMult: 1 + scale * (targetMaxSpeedMult - 1),
+                maxSpawnMult: 1 + scale * (targetMaxSpawnMult - 1),
+                maxHpMult: 1 + scale * (targetMaxHpMult - 1),
+                startSpeedMult: min(1, max(0.25, startSpeedMult))
+            )
+        }
+    }
+
+    static func endlessProgress(elapsedSec: Double) -> Double {
+        let t = max(0, elapsedSec)
+        return 1 - exp(-t / EndlessAccelCap.accelTimeConstantSec)
+    }
+
+    static func endlessAccel(elapsedSec: Double, cap: EndlessAccelCap) -> EndlessAccel {
+        let progress = endlessProgress(elapsedSec: elapsedSec)
+        return EndlessAccel(
+            speedMult: cap.startSpeedMult + (cap.maxSpeedMult - cap.startSpeedMult) * progress,
+            spawnMult: 1 + (cap.maxSpawnMult - 1) * progress,
+            hpMult: 1 + (cap.maxHpMult - 1) * progress
+        )
+    }
+
+    /// Legacy linear ramp for non–tier-path stages.
     static func endlessAccel(elapsedSec: Double) -> EndlessAccel {
         let clamped = max(0, elapsedSec)
         return EndlessAccel(

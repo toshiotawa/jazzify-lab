@@ -14,7 +14,12 @@ const playback = (): DefensePhraseBackingPlayback => ({
   barCount: 1,
 });
 
-const installMockAudioContext = (clock = { currentTime: 1, outputLatency: 0 }): void => {
+const installMockAudioContext = (
+  clock: { currentTime: number; outputLatency: number; state?: AudioContextState } = {
+    currentTime: 1,
+    outputLatency: 0,
+  },
+): void => {
   startedSources.length = 0;
   class MockGain {
     gain = {
@@ -48,13 +53,18 @@ const installMockAudioContext = (clock = { currentTime: 1, outputLatency: 0 }): 
     });
   }
   vi.stubGlobal('AudioContext', class {
-    state = 'running';
+    state: AudioContextState = clock.state ?? 'running';
 
     get currentTime() {
       return clock.currentTime;
     }
 
     outputLatency = clock.outputLatency;
+
+    resume = vi.fn(async () => {
+      this.state = 'running';
+      clock.state = 'running';
+    });
 
     destination = {};
 
@@ -152,6 +162,18 @@ describe('defenseBackingDeck pending switch', () => {
 
     defenseBackingDeck.start({ ...playback(), barCount: 4, loopEnd: 8 });
     clock.currentTime = 10.40; // 0.15s start lead elapsed -> exactly bar 0 (Listen)
+    expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(0, 6);
+  });
+
+  it('starts at bar 0 after ensureContextRunning when context was suspended', async () => {
+    const clock = { currentTime: 20, outputLatency: 0, state: 'suspended' as const };
+    installMockAudioContext(clock);
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    const runAt = await defenseBackingDeck.ensureContextRunning();
+    expect(runAt).toBe(clock.currentTime);
+    defenseBackingDeck.setTransportConfig(120, 4);
+    defenseBackingDeck.start({ ...playback(), barCount: 4, loopEnd: 8 });
+    clock.currentTime = runAt + 0.15;
     expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(0, 6);
   });
 

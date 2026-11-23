@@ -578,6 +578,34 @@ final class DefenseCallResponseTests: XCTestCase {
             XCTAssertEqual(snap.loopIndex, expectedLoop)
         }
     }
+
+    func testCappedEndlessAccelProgressAsymptoticAndMonotonic() {
+        let cap = DefenseCallResponseTier.EndlessAccelCap.scaled(maxScale: 1)
+        let early = DefenseCallResponseTier.endlessAccel(elapsedSec: 10, cap: cap)
+        let late = DefenseCallResponseTier.endlessAccel(elapsedSec: 600, cap: cap)
+        XCTAssertLessThanOrEqual(late.speedMult, cap.maxSpeedMult + 1e-9)
+        XCTAssertLessThanOrEqual(late.spawnMult, cap.maxSpawnMult + 1e-9)
+        XCTAssertLessThanOrEqual(late.hpMult, cap.maxHpMult + 1e-9)
+        XCTAssertLessThan(early.speedMult, late.speedMult)
+        XCTAssertEqual(DefenseCallResponseTier.endlessProgress(elapsedSec: 30), 0.283465, accuracy: 0.001)
+    }
+
+    func testResolveEndlessAccelCapStaysWithinBoundsForTierStages() {
+        let stage = crStage()
+        let guarded = DefenseCallResponseClearGuard.resolveGuardedDifficulty(
+            stage: stage,
+            phrases: stage.phrases,
+            tierLevel: 1
+        )
+        let cap = DefenseCallResponseClearGuard.resolveEndlessAccelCap(
+            stage: stage,
+            phrases: stage.phrases,
+            difficulty: guarded
+        )
+        XCTAssertGreaterThanOrEqual(cap.maxSpeedMult, cap.startSpeedMult)
+        XCTAssertGreaterThanOrEqual(cap.maxSpawnMult, 1)
+        XCTAssertGreaterThanOrEqual(cap.maxHpMult, 1)
+    }
 }
 
 private extension DefenseStageDefinition {

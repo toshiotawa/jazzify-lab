@@ -6,11 +6,15 @@ import { computeDefenseCallResponseClearTarget } from '@/game/defense/defenseCal
 import {
   buildDefenseCallResponseBaseDifficulty,
   clampDefenseCallResponseTierLevel,
+  computeDefenseEndlessAccelWithCap,
   countDefensePhraseAttacks,
+  type DefenseEndlessAccelCap,
   getDefenseCallResponseTierPreset,
   resolveDefensePhraseBars,
+  scaleDefenseEndlessAccelCap,
   type BuildDefenseCallResponseTierInput,
 } from '@/game/defense/defenseCallResponseTier';
+import { DEFENSE_ENDLESS_WAVE_INDEX } from '@/game/defense/defenseEngine';
 import {
   chargeDefenseSp,
   performDefenseSlash,
@@ -25,6 +29,10 @@ const MAX_BINARY_SEARCH_STEPS = 8;
 const GUARD_SPEED_FACTOR = 0.9;
 const MAX_RESPONSE_SIM_SEC = 600;
 const MIN_GUARDED_SPEED_PX = 2;
+const ENDLESS_SURVIVAL_SIM_SEC = 120;
+const ENDLESS_SURVIVAL_STEADY_SEC = 60;
+const ENDLESS_CAP_SAFETY_FACTOR = 0.85;
+const ENDLESS_START_SPEED_SAFETY_FACTOR = 0.9;
 
 type DryRunTimingMode = 'front_delayed' | 'back';
 
@@ -260,4 +268,210 @@ export const resolveDefenseCallResponseGuardedDifficulty = (
 ): DefenseDifficulty => {
   const baseDifficulty = buildDefenseCallResponseBaseDifficulty(buildInput);
   return applyDefenseCallResponseClearGuard(stage, phrases, baseDifficulty);
+};
+
+const applyEndlessAccel = (runtime: ReturnType<typeof createDefenseRuntime>, cap: DefenseEndlessAccelCap): void => {
+  const accel = computeDefenseEndlessAccelWithCap(runtime.endlessElapsedSec, cap);
+  runtime.endlessSpeedMult = accel.speedMult;
+  runtime.endlessSpawnMult = accel.spawnMult;
+  runtime.endlessHpMult = accel.hpMult;
+};
+
+const runEndlessSurvivalDryRun = (
+  stage: GuardStageInput,
+  phrases: readonly DefensePhrase[],
+  difficulty: DefenseDifficulty,
+  cap: DefenseEndlessAccelCap,
+  mode: DryRunTimingMode,
+): boolean => {
+  if (phrases.length === 0) return false;
+
+  const bpm = Math.max(1, stage.bpm);
+  const beatsPerBar = Math.max(1, stage.beatsPerBar);
+  const barSec = (60 / bpm) * beatsPerBar;
+  const eighthSec = 30 / bpm;
+  const callBars = Math.max(1, stage.callResponseBars ?? 1);
+  const responseBars = Math.max(1, stage.callResponseResponseBars ?? 1);
+  const callSec = callBars * barSec;
+  const responseSec = responseBars * barSec;
+  const spEligible = stage.attackTrigger === 'note' && stage.playStyle !== 'chord_voicing';
+
+  const runtime = createDefenseRuntime(
+    stage.playerHp,
+    stage.surviveSeconds,
+    difficulty.maxEnemies,
+    false,
+    stage.attackTrigger,
+  );
+  runtime.callResponseActive = true;
+  runtime.endlessPromptEnabled = false;
+  runtime.endlessMode = true;
+  runtime.waveIndex = DEFENSE_ENDLESS_WAVE_INDEX;
+  runtime.waveSpawnCount = 0;
+  runtime.targetEnemiesDefeated = 1;
+  runtime.spawnTimerSec = difficulty.spawnIntervalSec * 0.8;
+  runtime.enemyBehavior = 'approach';
+  applyEndlessAccel(runtime, cap);
+  spawnCallResponseInitialEnemy(runtime, difficulty);
+
+  let totalResponseSec = 0;
+  let phraseIdx = 0;
+  let hpAtSteadyStart: number | null = null;
+
+  while (runtime.result === 'playing' && totalResponseSec < ENDLESS_SURVIVAL_SIM_SEC) {
+    const phrase = phrases[phraseIdx % phrases.length];
+    if (!phrase) break;
+    phraseIdx += 1;
+
+    const phraseBars = resolveDefensePhraseBars(phrase, stage.phraseBars);
+    const phraseSec = phraseBars * barSec;
+    const attacks = countDefensePhraseAttacks(phrase, stage.attackTrigger);
+    const measures = Math.max(1, phrase.chords.length);
+    const reqCount = Math.max(1, phrase.requiredCompletionCount ?? stage.requiredCompletionCount);
+    const repsPerResponse = Math.max(1, Math.floor(responseBars / phraseBars));
+    const offsets = buildPhraseOffsets(attacks, phraseSec, eighthSec, mode);
+    const measureEnds = buildMeasureEndIndices(offsets.length, measures);
+
+    let repsLeft = reqCount;
+    while (repsLeft > 0 && runtime.result === 'playing' && totalResponseSec < ENDLESS_SURVIVAL_SIM_SEC) {
+      const repsThisWindow = Math.min(repsLeft, repsPerResponse);
+      const isFinishingPhrase = repsThisWindow === repsLeft;
+      const events: DryRunAttackEvent[] = [];
+      for (let r = 0; r < repsThisWindow; r += 1) {
+        const baseT = r * phraseSec;
+        for (let ni = 0; ni < offsets.length; ni += 1) {
+          events.push({
+            timeSec: baseT + (offsets[ni] ?? 0),
+            isMeasureEnd: measureEnds.has(ni),
+          });
+        }
+      }
+
+      const lastEventTime = events.length > 0 ? (events[events.length - 1]?.timeSec ?? 0) : 0;
+      const windowDur = isFinishingPhrase ? lastEventTime + DRY_RUN_DT_SEC : responseSec;
+
+      runtime.enemyBehavior = 'approach';
+      let eventIndex = 0;
+      let localT = 0;
+      while (localT < windowDur && runtime.result === 'playing' && totalResponseSec < ENDLESS_SURVIVAL_SIM_SEC) {
+        const step = Math.min(DRY_RUN_DT_SEC, windowDur - localT);
+        localT += step;
+        totalResponseSec += step;
+        runtime.endlessElapsedSec += step;
+        applyEndlessAccel(runtime, cap);
+
+        if (totalResponseSec >= ENDLESS_SURVIVAL_SIM_SEC - ENDLESS_SURVIVAL_STEADY_SEC && hpAtSteadyStart == null) {
+          hpAtSteadyStart = runtime.playerHp;
+        }
+        if (hpAtSteadyStart != null && runtime.playerHp < hpAtSteadyStart) {
+          return false;
+        }
+
+        while (eventIndex < events.length && (events[eventIndex]?.timeSec ?? Infinity) <= localT + 1e-9) {
+          performDefenseSlash(runtime, 0, difficulty);
+          if (runtime.result !== 'playing') break;
+          if (spEligible && events[eventIndex]?.isMeasureEnd) {
+            chargeDefenseSp(runtime);
+          }
+          eventIndex += 1;
+        }
+        if (runtime.result !== 'playing') break;
+
+        tickDefenseSimulation(runtime, difficulty, step);
+      }
+
+      if (runtime.result !== 'playing') break;
+
+      runtime.enemyBehavior = 'dance';
+      for (const enemy of runtime.enemies) {
+        if (enemy.active) {
+          enemy.knockbackVx = 0;
+          enemy.attackHitPending = false;
+        }
+      }
+      runtime.elapsedSec += callSec;
+      repsLeft -= repsThisWindow;
+    }
+  }
+
+  if (runtime.result !== 'playing' || hpAtSteadyStart == null) return false;
+  return runtime.playerHp >= hpAtSteadyStart;
+};
+
+const passesEndlessCap = (
+  stage: GuardStageInput,
+  phrases: readonly DefensePhrase[],
+  difficulty: DefenseDifficulty,
+  cap: DefenseEndlessAccelCap,
+): boolean => {
+  const front = runEndlessSurvivalDryRun(stage, phrases, difficulty, cap, 'front_delayed');
+  if (!front) return false;
+  return runEndlessSurvivalDryRun(stage, phrases, difficulty, cap, 'back');
+};
+
+export const resolveDefenseEndlessAccelCap = (
+  stage: GuardStageInput,
+  phrases: readonly DefensePhrase[],
+  difficulty: DefenseDifficulty,
+): DefenseEndlessAccelCap => {
+  const tryCapScale = (scale: number): boolean => passesEndlessCap(
+    stage,
+    phrases,
+    difficulty,
+    scaleDefenseEndlessAccelCap(scale),
+  );
+
+  if (tryCapScale(1)) {
+    return scaleDefenseEndlessAccelCap(ENDLESS_CAP_SAFETY_FACTOR);
+  }
+
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < MAX_BINARY_SEARCH_STEPS; step += 1) {
+    const mid = (low + high) / 2;
+    if (tryCapScale(mid)) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  if (low > 0) {
+    return scaleDefenseEndlessAccelCap(low * ENDLESS_CAP_SAFETY_FACTOR);
+  }
+
+  const fixedCap: DefenseEndlessAccelCap = {
+    maxSpeedMult: 1,
+    maxSpawnMult: 1,
+    maxHpMult: 1,
+    startSpeedMult: 1,
+  };
+  if (passesEndlessCap(stage, phrases, difficulty, fixedCap)) {
+    return fixedCap;
+  }
+
+  let speedLow = 0.25;
+  let speedHigh = 1;
+  for (let step = 0; step < MAX_BINARY_SEARCH_STEPS; step += 1) {
+    const mid = (speedLow + speedHigh) / 2;
+    const cap: DefenseEndlessAccelCap = {
+      maxSpeedMult: mid,
+      maxSpawnMult: 1,
+      maxHpMult: 1,
+      startSpeedMult: mid,
+    };
+    if (passesEndlessCap(stage, phrases, difficulty, cap)) {
+      speedLow = mid;
+    } else {
+      speedHigh = mid;
+    }
+  }
+
+  const guardedStart = Math.max(0.25, speedLow * ENDLESS_START_SPEED_SAFETY_FACTOR);
+  return {
+    maxSpeedMult: guardedStart,
+    maxSpawnMult: 1,
+    maxHpMult: 1,
+    startSpeedMult: guardedStart,
+  };
 };

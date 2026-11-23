@@ -140,4 +140,43 @@ final class DefenseTransportTests: XCTestCase {
             accuracy: 0.0001
         )
     }
+
+    func testElapsedFromPlayerSampleClampsBeforeOnset() {
+        XCTAssertEqual(
+            DefenseTransport.elapsedFromPlayerSample(
+                sampleTime: -100,
+                sampleRate: 44100,
+                playbackRate: 1,
+                startOffsetSec: 0,
+                hostDeltaSec: 0,
+                presentationLatency: 0.02
+            ),
+            0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testElapsedFromPlayerSampleMatchesRateAndOffset() {
+        let sampleTime: Int64 = 44100
+        XCTAssertEqual(
+            DefenseTransport.elapsedFromPlayerSample(
+                sampleTime: sampleTime,
+                sampleRate: 44100,
+                playbackRate: 0.8,
+                startOffsetSec: 1.25,
+                hostDeltaSec: 0.01,
+                presentationLatency: 0
+            ),
+            1.25 + 1.25 + 0.01,
+            accuracy: 0.001
+        )
+    }
+
+    func testTransportStartFromAudibleElapsed() {
+        XCTAssertEqual(
+            DefenseTransport.transportStartFromAudibleElapsed(hostNow: 12.5, audibleElapsedSec: 2.5),
+            10.0,
+            accuracy: 0.0001
+        )
+    }
 }

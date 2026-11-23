@@ -85,7 +85,12 @@ import {
   computeDefenseEndlessAccel,
   computeDefenseStarRank,
   formatDefenseStarRank,
+  resolveDefenseEndlessAccelCap,
 } from '@/game/defense/defenseCallResponseCombat';
+import {
+  computeDefenseEndlessAccelWithCap,
+  type DefenseEndlessAccelCap,
+} from '@/game/defense/defenseCallResponseTier';
 import { DefenseEndlessContinueModal } from '@/components/defense/DefenseEndlessContinueModal';
 import {
   createInitialPhraseJudgeState,
@@ -295,6 +300,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
     return buildTransposedVoicingPhrases(stage, voicingKeyState);
   }, [stage, isChordVoicingStage, voicingKeyState]);
+  const endlessAccelCap = useMemo((): DefenseEndlessAccelCap | null => {
+    if (!useCallResponseTierRecording || callResponseConfig == null) {
+      return null;
+    }
+    return resolveDefenseEndlessAccelCap(stage, activePhrases, effectiveDifficulty);
+  }, [
+    useCallResponseTierRecording,
+    callResponseConfig,
+    stage,
+    activePhrases,
+    effectiveDifficulty,
+  ]);
   const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
   const [elapsedInt, setElapsedInt] = useState(0);
   const [phase, setPhase] = useState<DefenseGamePhase>('loading');
@@ -379,9 +396,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           try {
             const playback = await defenseBackingDeck.preparePhraseBacking(stage, targetPhrase, ratio);
             if (backingRestartGenerationRef.current !== generation) return;
+            await defenseBackingDeck.ensureContextRunning();
             defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
             defenseBackingDeck.start(playback);
-            defenseBackingDeck.resume();
             setBackingPhraseIndex(targetPhraseIndex);
 
             const nextIndex = nextPhraseIndex(stage.phrases, targetPhraseIndex);
@@ -493,6 +510,24 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     phaseRef.current = 'playing';
     setPhase('playing');
+
+    if (
+      !isTutorialSession
+      && !isSharedProgressionStage
+      && !isSeparateTracksStage
+      && callResponseConfig != null
+    ) {
+      const ratioSnapshot = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+      void (async () => {
+        for (const phrase of stage.phrases) {
+          try {
+            await defenseBackingDeck.preparePhraseBacking(stage, phrase, ratioSnapshot);
+          } catch {
+            /* skip failed phrase cache */
+          }
+        }
+      })();
+    }
   }, [
     stage,
     stage.bpm,
@@ -1197,7 +1232,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         return;
       }
 
-      const preloadIndices = practiceMode
+      const preloadIndices = practiceMode || useCallResponseTierRecording
         ? stage.phrases.map((_, index) => index)
         : [0, 1].filter((index) => index < stage.phrases.length);
       const preloadUrls = resolveDefensePhrasePreloadUrls(stage, preloadIndices);
@@ -1344,7 +1379,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             lastCallResponsePhaseRef.current = snapshot.phase;
             if (runtime.endlessMode && snapshot.phase === 'response') {
               runtime.endlessElapsedSec += dt;
-              const accel = computeDefenseEndlessAccel(runtime.endlessElapsedSec);
+              const accel = endlessAccelCap != null
+                ? computeDefenseEndlessAccelWithCap(runtime.endlessElapsedSec, endlessAccelCap)
+                : computeDefenseEndlessAccel(runtime.endlessElapsedSec);
               runtime.endlessSpeedMult = accel.speedMult;
               runtime.endlessSpawnMult = accel.spawnMult;
               runtime.endlessHpMult = accel.hpMult;

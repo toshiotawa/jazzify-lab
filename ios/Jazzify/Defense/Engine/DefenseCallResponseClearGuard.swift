@@ -6,6 +6,10 @@ enum DefenseCallResponseClearGuard {
     private static let guardSpeedFactor = 0.9
     private static let maxResponseSimSec = 600.0
     private static let minGuardedSpeedPx = 2.0
+    private static let endlessSurvivalSimSec = 120.0
+    private static let endlessSurvivalSteadySec = 60.0
+    private static let endlessCapSafetyFactor = 0.85
+    private static let endlessStartSpeedSafetyFactor = 0.9
 
     private enum TimingMode {
         case frontDelayed
@@ -167,6 +171,232 @@ enum DefenseCallResponseClearGuard {
         }
 
         return DryRunResult(cleared: runtime.result == .clear, playerHp: runtime.playerHp)
+    }
+
+    private static func applyEndlessAccel(runtime: inout DefenseRuntimeState, cap: DefenseCallResponseTier.EndlessAccelCap) {
+        let accel = DefenseCallResponseTier.endlessAccel(elapsedSec: runtime.endlessElapsedSec, cap: cap)
+        runtime.endlessSpeedMult = accel.speedMult
+        runtime.endlessSpawnMult = accel.spawnMult
+        runtime.endlessHpMult = accel.hpMult
+    }
+
+    private static func runEndlessSurvivalDryRun(
+        stage: DefenseStageDefinition,
+        phrases: [DefensePhraseDefinition],
+        difficulty: DefenseDifficultyDefinition,
+        cap: DefenseCallResponseTier.EndlessAccelCap,
+        mode: TimingMode
+    ) -> Bool {
+        guard !phrases.isEmpty else { return false }
+
+        let bpm = max(1, stage.bpm)
+        let beatsPerBar = max(1, stage.beatsPerBar)
+        let barSec = (60 / bpm) * Double(beatsPerBar)
+        let eighthSec = 30 / bpm
+        let callBars = max(1, stage.callResponseBars ?? 1)
+        let responseBars = max(1, stage.callResponseResponseBars ?? 1)
+        let callSec = Double(callBars) * barSec
+        let responseSec = Double(responseBars) * barSec
+        let spEligible = stage.attackTrigger == .note && stage.playStyle != .chordVoicing
+
+        var runtime = DefenseRuntimeState(
+            playerHp: stage.playerHp,
+            surviveSeconds: TimeInterval(stage.surviveSeconds),
+            maxEnemies: difficulty.maxEnemies,
+            practiceMode: false,
+            tutorial: nil,
+            attackTrigger: stage.attackTrigger
+        )
+        runtime.callResponseActive = true
+        runtime.endlessPromptEnabled = false
+        runtime.endlessMode = true
+        runtime.waveIndex = DefenseCallResponseCombat.endlessWaveIndex
+        runtime.waveSpawnCount = 0
+        runtime.targetEnemiesDefeated = 1
+        runtime.spawnTimerSec = difficulty.spawnIntervalSec * 0.8
+        runtime.enemyBehavior = .approach
+        applyEndlessAccel(runtime: &runtime, cap: cap)
+        DefenseGameLoop.spawnCallResponseInitialEnemy(runtime: &runtime, difficulty: difficulty)
+
+        var totalResponseSec = 0.0
+        var phraseIdx = 0
+        var hpAtSteadyStart: Int?
+
+        while runtime.result == .playing, totalResponseSec < endlessSurvivalSimSec {
+            let phrase = phrases[phraseIdx % phrases.count]
+            phraseIdx += 1
+
+            let pBars = DefenseCallResponseTier.resolvePhraseBars(phrase, stagePhraseBars: stage.phraseBars)
+            let phraseSec = Double(pBars) * barSec
+            let attacks = DefenseCallResponseTier.countPhraseAttacks(phrase, attackTrigger: stage.attackTrigger)
+            let measures = max(1, phrase.chords.count)
+            let reqCount = max(1, phrase.requiredCompletionCount ?? stage.requiredCompletionCount)
+            let repsPerResponse = max(1, responseBars / pBars)
+            let offsets = buildPhraseOffsets(
+                attacks: attacks,
+                phraseSec: phraseSec,
+                eighthSec: eighthSec,
+                mode: mode
+            )
+            let measureEnds = buildMeasureEndIndices(attackCount: offsets.count, measureCount: measures)
+
+            var repsLeft = reqCount
+            while repsLeft > 0, runtime.result == .playing, totalResponseSec < endlessSurvivalSimSec {
+                let repsThisWindow = min(repsLeft, repsPerResponse)
+                let isFinishingPhrase = repsThisWindow == repsLeft
+                var events: [AttackEvent] = []
+                events.reserveCapacity(repsThisWindow * offsets.count)
+                for rep in 0..<repsThisWindow {
+                    let baseT = Double(rep) * phraseSec
+                    for (ni, offset) in offsets.enumerated() {
+                        events.append(AttackEvent(timeSec: baseT + offset, isMeasureEnd: measureEnds.contains(ni)))
+                    }
+                }
+
+                let lastEventTime = events.last?.timeSec ?? 0
+                let windowDur = isFinishingPhrase ? lastEventTime + dryRunDtSec : responseSec
+
+                runtime.enemyBehavior = .approach
+                var eventIndex = 0
+                var localT = 0.0
+                while localT < windowDur, runtime.result == .playing, totalResponseSec < endlessSurvivalSimSec {
+                    let step = min(dryRunDtSec, windowDur - localT)
+                    localT += step
+                    totalResponseSec += step
+                    runtime.endlessElapsedSec += step
+                    applyEndlessAccel(runtime: &runtime, cap: cap)
+
+                    if totalResponseSec >= endlessSurvivalSimSec - endlessSurvivalSteadySec, hpAtSteadyStart == nil {
+                        hpAtSteadyStart = runtime.playerHp
+                    }
+                    if let steadyHp = hpAtSteadyStart, runtime.playerHp < steadyHp {
+                        return false
+                    }
+
+                    while eventIndex < events.count, events[eventIndex].timeSec <= localT + 1e-9 {
+                        _ = DefenseGameLoop.performSlash(runtime: &runtime, difficulty: difficulty)
+                        if runtime.result != .playing { break }
+                        if spEligible, events[eventIndex].isMeasureEnd {
+                            _ = DefenseGameLoop.chargeSp(runtime: &runtime)
+                        }
+                        eventIndex += 1
+                    }
+                    if runtime.result != .playing { break }
+
+                    DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: step)
+                }
+
+                if runtime.result != .playing { break }
+
+                runtime.enemyBehavior = .dance
+                for idx in runtime.enemies.indices where runtime.enemies[idx].isActive {
+                    runtime.enemies[idx].knockbackVx = 0
+                    runtime.enemies[idx].attackHitPending = false
+                }
+                runtime.elapsedSec += callSec
+                repsLeft -= repsThisWindow
+            }
+        }
+
+        guard runtime.result == .playing else { return false }
+        guard let steadyHp = hpAtSteadyStart else { return false }
+        return runtime.playerHp >= steadyHp
+    }
+
+    private static func passesEndlessCap(
+        stage: DefenseStageDefinition,
+        phrases: [DefensePhraseDefinition],
+        difficulty: DefenseDifficultyDefinition,
+        cap: DefenseCallResponseTier.EndlessAccelCap
+    ) -> Bool {
+        let front = runEndlessSurvivalDryRun(
+            stage: stage,
+            phrases: phrases,
+            difficulty: difficulty,
+            cap: cap,
+            mode: .frontDelayed
+        )
+        guard front else { return false }
+        return runEndlessSurvivalDryRun(
+            stage: stage,
+            phrases: phrases,
+            difficulty: difficulty,
+            cap: cap,
+            mode: .back
+        )
+    }
+
+    static func resolveEndlessAccelCap(
+        stage: DefenseStageDefinition,
+        phrases: [DefensePhraseDefinition],
+        difficulty: DefenseDifficultyDefinition
+    ) -> DefenseCallResponseTier.EndlessAccelCap {
+        func tryCapScale(_ scale: Double) -> Bool {
+            passesEndlessCap(
+                stage: stage,
+                phrases: phrases,
+                difficulty: difficulty,
+                cap: DefenseCallResponseTier.EndlessAccelCap.scaled(maxScale: scale)
+            )
+        }
+
+        if tryCapScale(1) {
+            return DefenseCallResponseTier.EndlessAccelCap.scaled(
+                maxScale: endlessCapSafetyFactor
+            )
+        }
+
+        var low = 0.0
+        var high = 1.0
+        for _ in 0..<maxBinarySearchSteps {
+            let mid = (low + high) / 2
+            if tryCapScale(mid) {
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+
+        if low > 0 {
+            return DefenseCallResponseTier.EndlessAccelCap.scaled(
+                maxScale: low * endlessCapSafetyFactor
+            )
+        }
+
+        let fixedCap = DefenseCallResponseTier.EndlessAccelCap(
+            maxSpeedMult: 1,
+            maxSpawnMult: 1,
+            maxHpMult: 1,
+            startSpeedMult: 1
+        )
+        if passesEndlessCap(stage: stage, phrases: phrases, difficulty: difficulty, cap: fixedCap) {
+            return fixedCap
+        }
+
+        var speedLow = 0.25
+        var speedHigh = 1.0
+        for _ in 0..<maxBinarySearchSteps {
+            let mid = (speedLow + speedHigh) / 2
+            let cap = DefenseCallResponseTier.EndlessAccelCap(
+                maxSpeedMult: mid,
+                maxSpawnMult: 1,
+                maxHpMult: 1,
+                startSpeedMult: mid
+            )
+            if passesEndlessCap(stage: stage, phrases: phrases, difficulty: difficulty, cap: cap) {
+                speedLow = mid
+            } else {
+                speedHigh = mid
+            }
+        }
+
+        let guardedStart = max(0.25, speedLow * endlessStartSpeedSafetyFactor)
+        return DefenseCallResponseTier.EndlessAccelCap(
+            maxSpeedMult: guardedStart,
+            maxSpawnMult: 1,
+            maxHpMult: 1,
+            startSpeedMult: guardedStart
+        )
     }
 
     private static func passesGuardHpFloor(playerHp: Int, playerMaxHp: Int, minHpRatio: Double) -> Bool {

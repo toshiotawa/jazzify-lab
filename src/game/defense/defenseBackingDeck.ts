@@ -450,6 +450,16 @@ class DefenseBackingDeck {
     }
   }
 
+  /** Resumes a suspended context and returns the audio clock used for transport scheduling. */
+  async ensureContextRunning(): Promise<number> {
+    const graph = this.ensureGraph();
+    const { ctx } = graph;
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    return ctx.currentTime;
+  }
+
   stop(): void {
     this.stopInternal(true);
     const ctx = this.graph?.ctx ?? sharedAudioContext;

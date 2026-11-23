@@ -246,12 +246,56 @@ const ENDLESS_SPEED_ACCEL_PER_SEC = 0.025;
 const ENDLESS_SPAWN_ACCEL_PER_SEC = 0.025;
 const ENDLESS_HP_ACCEL_PER_SEC = 0.015;
 
-interface DefenseEndlessAccel {
+export interface DefenseEndlessAccel {
   readonly speedMult: number;
   readonly spawnMult: number;
   readonly hpMult: number;
 }
 
+export interface DefenseEndlessAccelCap {
+  readonly maxSpeedMult: number;
+  readonly maxSpawnMult: number;
+  readonly maxHpMult: number;
+  readonly startSpeedMult: number;
+}
+
+export const DEFENSE_ENDLESS_ACCEL_TARGET_MAX_SPEED = 1.65;
+export const DEFENSE_ENDLESS_ACCEL_TARGET_MAX_SPAWN = 1.65;
+export const DEFENSE_ENDLESS_ACCEL_TARGET_MAX_HP = 1.4;
+export const DEFENSE_ENDLESS_ACCEL_TIME_CONSTANT_SEC = 90;
+
+export const scaleDefenseEndlessAccelCap = (
+  maxScale: number,
+  startSpeedMult = 1,
+): DefenseEndlessAccelCap => {
+  const scale = Math.min(1, Math.max(0, maxScale));
+  const start = Math.min(1, Math.max(0.25, startSpeedMult));
+  return {
+    maxSpeedMult: 1 + scale * (DEFENSE_ENDLESS_ACCEL_TARGET_MAX_SPEED - 1),
+    maxSpawnMult: 1 + scale * (DEFENSE_ENDLESS_ACCEL_TARGET_MAX_SPAWN - 1),
+    maxHpMult: 1 + scale * (DEFENSE_ENDLESS_ACCEL_TARGET_MAX_HP - 1),
+    startSpeedMult: start,
+  };
+};
+
+export const computeDefenseEndlessProgress = (elapsedSec: number): number => {
+  const t = Math.max(0, elapsedSec);
+  return 1 - Math.exp(-t / DEFENSE_ENDLESS_ACCEL_TIME_CONSTANT_SEC);
+};
+
+export const computeDefenseEndlessAccelWithCap = (
+  elapsedSec: number,
+  cap: DefenseEndlessAccelCap,
+): DefenseEndlessAccel => {
+  const progress = computeDefenseEndlessProgress(elapsedSec);
+  return {
+    speedMult: cap.startSpeedMult + (cap.maxSpeedMult - cap.startSpeedMult) * progress,
+    spawnMult: 1 + (cap.maxSpawnMult - 1) * progress,
+    hpMult: 1 + (cap.maxHpMult - 1) * progress,
+  };
+};
+
+/** Legacy linear ramp for non–tier-path stages. */
 export const computeDefenseEndlessAccel = (elapsedSec: number): DefenseEndlessAccel => {
   const clamped = Math.max(0, elapsedSec);
   return {

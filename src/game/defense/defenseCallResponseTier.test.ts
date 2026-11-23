@@ -4,10 +4,16 @@ import {
   clampDefenseCallResponseTierLevel,
   computeDefenseCallResponsePhraseDensityScale,
   computeDefenseEndlessAccel,
+  computeDefenseEndlessAccelWithCap,
+  computeDefenseEndlessProgress,
   computeDefenseStarRank,
   formatDefenseStarRank,
+  scaleDefenseEndlessAccelCap,
 } from '@/game/defense/defenseCallResponseTier';
-import { resolveDefenseCallResponseGuardedDifficulty } from '@/game/defense/defenseCallResponseClearGuard';
+import {
+  resolveDefenseCallResponseGuardedDifficulty,
+  resolveDefenseEndlessAccelCap,
+} from '@/game/defense/defenseCallResponseClearGuard';
 import type { DefensePhrase, DefenseStage } from '@/game/defense/defenseTypes';
 
 const makePhrase = (notes: number, measureCount = 1, required: number | null = 3): DefensePhrase => ({
@@ -249,12 +255,69 @@ describe('computeDefenseStarRank & endless accel', () => {
     expect(formatDefenseStarRank(3)).toBe('★★★');
   });
 
-  it('ramps endless speed/spawn/hp multipliers monotonically with elapsed seconds', () => {
+  it('ramps legacy endless multipliers linearly with elapsed seconds', () => {
     const t0 = computeDefenseEndlessAccel(0);
     const t40 = computeDefenseEndlessAccel(40);
     expect(t0).toEqual({ speedMult: 1, spawnMult: 1, hpMult: 1 });
     expect(t40.speedMult).toBeCloseTo(2.0);
     expect(t40.spawnMult).toBeCloseTo(2.0);
     expect(t40.hpMult).toBeCloseTo(1.6);
+  });
+
+  it('caps endless accel with asymptotic progress and never exceeds cap', () => {
+    const cap = scaleDefenseEndlessAccelCap(1);
+    expect(computeDefenseEndlessProgress(30)).toBeCloseTo(0.283, 2);
+    const early = computeDefenseEndlessAccelWithCap(10, cap);
+    const late = computeDefenseEndlessAccelWithCap(600, cap);
+    expect(late.speedMult).toBeLessThanOrEqual(cap.maxSpeedMult + 1e-9);
+    expect(late.spawnMult).toBeLessThanOrEqual(cap.maxSpawnMult + 1e-9);
+    expect(late.hpMult).toBeLessThanOrEqual(cap.maxHpMult + 1e-9);
+    expect(early.speedMult).toBeLessThan(late.speedMult);
+  });
+
+  it('resolveDefenseEndlessAccelCap yields caps that stay within bounds', () => {
+    const stageBase: DefenseStage = {
+      id: 'cr-1-1',
+      slug: 'cr-1-1',
+      title: 'CR',
+      bpm: 120,
+      beatsPerBar: 4,
+      phraseBars: 4,
+      playerHp: 20,
+      surviveSeconds: 120,
+      attackTrigger: 'note',
+      playStyle: 'note',
+      requiredCompletionCount: 1,
+      callResponseBars: 1,
+      callResponseResponseBars: 3,
+      callResponseLaps: 1,
+      audioLoopBars: 4,
+      audioUrl: '',
+      audioRegistrationMode: 'single_source',
+      phrases: [],
+    };
+    const phrases: DefensePhrase[] = [
+      makePhrase(7, 2, 1),
+    ];
+    const base = buildDefenseCallResponseBaseDifficulty({
+      tierLevel: 1,
+      bpm: stageBase.bpm,
+      beatsPerBar: stageBase.beatsPerBar,
+      phraseBars: stageBase.phraseBars,
+      attackTrigger: stageBase.attackTrigger,
+      phrases,
+    });
+    const guarded = resolveDefenseCallResponseGuardedDifficulty(stageBase, phrases, {
+      tierLevel: base.level,
+      bpm: stageBase.bpm,
+      beatsPerBar: stageBase.beatsPerBar,
+      phraseBars: stageBase.phraseBars,
+      attackTrigger: stageBase.attackTrigger,
+      phrases,
+    });
+    const cap = resolveDefenseEndlessAccelCap(stageBase, phrases, guarded);
+    expect(cap.maxSpeedMult).toBeGreaterThanOrEqual(cap.startSpeedMult);
+    expect(cap.maxSpawnMult).toBeGreaterThanOrEqual(1);
+    expect(cap.maxHpMult).toBeGreaterThanOrEqual(1);
   });
 });
