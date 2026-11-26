@@ -1,38 +1,81 @@
 import type { PaymentIssueBannerVariant } from '@/utils/paymentIssueBanner';
+
 import { resolvePaymentIssueBanner } from '@/utils/paymentIssueBanner';
+
 import { deriveBillingCapabilities } from '../../netlify/functions/lib/lemonSubscriptionGuard';
-import {
-  billingAmountForPlanCode,
-} from '@/utils/premiumPricing';
+
+import { billingAmountForPlanCode } from '@/utils/premiumPricing';
+
 import type { BillingCurrency } from '@/utils/billingCurrency';
 
 export interface BillingStatusPayload {
   provider: string;
+
   status: string;
+
   entitlement_state: string;
+
   plan_code: string;
+
   trial_used: boolean;
+
   trial_used_at: string | null;
+
   current_period_ends_at: string | null;
+
   pending_plan_code: string | null;
+
   pending_plan_effective_at: string | null;
+
   pending_cancel_effective_at: string | null;
+
   next_billing_amount_jpy: number | null;
+
   next_billing_amount_usd: number | null;
+
   billing_currency: BillingCurrency;
+
   can_change_plan: boolean;
+
   can_resume: boolean;
+
   can_manage_payment: boolean;
+
   can_cancel_pending_plan_change: boolean;
+
   has_lemon_billing_history: boolean;
+
+  coaching_subscription: CoachingBillingStatus | null;
+
+  can_start_coaching: boolean;
+}
+
+export interface CoachingBillingStatus {
+  provider: string;
+
+  status: string;
+
+  entitlement_state: string;
+
+  current_period_ends_at: string | null;
+
+  pending_cancel_effective_at: string | null;
+
+  next_billing_amount_jpy: number | null;
+
+  billing_currency: BillingCurrency;
 }
 
 let cache: { payload: BillingStatusPayload; fetchedAt: number } | null = null;
+
 const CACHE_MS = 45_000;
 
 const refreshSubscribers = new Set<() => void>();
+
 let refreshNonce = 0;
+
 /** 古い in-flight 取得がキャッシュを上書きしないよう世代管理する */
+
 let fetchGeneration = 0;
 
 export function clearBillingStatusCache(): void {
@@ -40,8 +83,10 @@ export function clearBillingStatusCache(): void {
 }
 
 /** 課金操作後など、全 useBillingAwareMembership インスタンスに再取得を促す */
+
 export function subscribeBillingRefresh(listener: () => void): () => void {
   refreshSubscribers.add(listener);
+
   return () => refreshSubscribers.delete(listener);
 }
 
@@ -55,22 +100,29 @@ export function getBillingFetchGeneration(): number {
 
 function notifyBillingRefresh(): void {
   refreshNonce += 1;
+
   refreshSubscribers.forEach((listener) => listener());
 }
 
 function beginBillingStatusRefresh(): number {
   clearBillingStatusCache();
+
   fetchGeneration += 1;
+
   notifyBillingRefresh();
+
   return fetchGeneration;
 }
 
 function nextBillingAmountForCurrency(
   planCode: string,
+
   pendingPlanCode: string | null,
+
   currency: BillingCurrency,
 ): number | null {
   const effectivePlanCode = pendingPlanCode ?? planCode;
+
   return billingAmountForPlanCode(effectivePlanCode, currency);
 }
 
@@ -78,166 +130,307 @@ function resolveBillingCurrency(raw: Partial<BillingStatusPayload>): BillingCurr
   if (raw.billing_currency === 'USD' || raw.billing_currency === 'JPY') {
     return raw.billing_currency;
   }
+
   return 'JPY';
 }
 
 /** billing-status 未デプロイ時など can_* が欠けるレスポンスを正規化する */
+
 export function normalizeBillingStatusPayload(
-  raw: Partial<BillingStatusPayload> & Pick<BillingStatusPayload, 'provider' | 'entitlement_state' | 'status'>,
+  raw: Partial<BillingStatusPayload> &
+    Pick<BillingStatusPayload, 'provider' | 'entitlement_state' | 'status'>,
 ): BillingStatusPayload {
   const pendingPlanCode = raw.pending_plan_code ?? null;
+
   const pendingCancelScheduled = raw.pending_cancel_effective_at != null;
+
   const derived = deriveBillingCapabilities(
     raw.provider,
+
     raw.entitlement_state,
+
     raw.status,
+
     pendingPlanCode,
+
     pendingCancelScheduled,
   );
+
   const planCode = raw.plan_code ?? 'unknown';
+
   const billingCurrency = resolveBillingCurrency(raw);
-  const hideNextBilling = raw.entitlement_state === 'expired'
-    || pendingCancelScheduled
-    || raw.entitlement_state === 'cancelled_but_active_until_end';
+
+  const hideNextBilling =
+    raw.entitlement_state === 'expired' ||
+    pendingCancelScheduled ||
+    raw.entitlement_state === 'cancelled_but_active_until_end';
+
   const nextAmount = hideNextBilling
     ? null
     : nextBillingAmountForCurrency(planCode, pendingPlanCode, billingCurrency);
+
   return {
     provider: raw.provider,
+
     status: raw.status,
+
     entitlement_state: raw.entitlement_state,
+
     plan_code: planCode,
+
     trial_used: raw.trial_used ?? false,
+
     trial_used_at: raw.trial_used_at ?? null,
+
     current_period_ends_at: raw.current_period_ends_at ?? null,
+
     pending_plan_code: pendingPlanCode,
+
     pending_plan_effective_at: raw.pending_plan_effective_at ?? null,
+
     pending_cancel_effective_at: raw.pending_cancel_effective_at ?? null,
-    next_billing_amount_jpy: billingCurrency === 'USD'
-      ? null
-      : raw.next_billing_amount_jpy ?? nextAmount,
-    next_billing_amount_usd: billingCurrency === 'JPY'
-      ? null
-      : raw.next_billing_amount_usd ?? nextAmount,
+
+    next_billing_amount_jpy:
+      billingCurrency === 'USD' ? null : (raw.next_billing_amount_jpy ?? nextAmount),
+
+    next_billing_amount_usd:
+      billingCurrency === 'JPY' ? null : (raw.next_billing_amount_usd ?? nextAmount),
+
     billing_currency: billingCurrency,
+
     can_change_plan: raw.can_change_plan ?? derived.can_change_plan,
+
     can_resume: raw.can_resume ?? derived.can_resume,
+
     can_manage_payment: raw.can_manage_payment ?? derived.can_manage_payment,
-    can_cancel_pending_plan_change: raw.can_cancel_pending_plan_change
-      ?? derived.can_cancel_pending_plan_change,
+
+    can_cancel_pending_plan_change:
+      raw.can_cancel_pending_plan_change ?? derived.can_cancel_pending_plan_change,
+
     has_lemon_billing_history: raw.has_lemon_billing_history ?? false,
+
+    coaching_subscription: normalizeCoachingBillingStatus(raw.coaching_subscription),
+
+    can_start_coaching: raw.can_start_coaching === true,
+  };
+}
+
+function normalizeCoachingBillingStatus(value: unknown): CoachingBillingStatus | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+
+  const record = value as Partial<CoachingBillingStatus>;
+
+  if (
+    typeof record.provider !== 'string' ||
+    typeof record.status !== 'string' ||
+    typeof record.entitlement_state !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    provider: record.provider,
+
+    status: record.status,
+
+    entitlement_state: record.entitlement_state,
+
+    current_period_ends_at:
+      typeof record.current_period_ends_at === 'string' ? record.current_period_ends_at : null,
+
+    pending_cancel_effective_at:
+      typeof record.pending_cancel_effective_at === 'string'
+        ? record.pending_cancel_effective_at
+        : null,
+
+    next_billing_amount_jpy:
+      typeof record.next_billing_amount_jpy === 'number' ? record.next_billing_amount_jpy : null,
+
+    billing_currency: record.billing_currency === 'USD' ? 'USD' : 'JPY',
   };
 }
 
 export interface FetchBillingStatusOptions {
   /** true のときメモリキャッシュを無視（課金操作直後の再取得用） */
+
   force?: boolean;
+
   /** 開始時世代。refresh 後に古い in-flight 応答が cache を汚さないようにする */
+
   generation?: number;
 }
 
 /** 解約取り消し成功直後の UI 用に、billing-status 相当の payload を即時導出する */
+
 export function applyOptimisticBillingAfterResume(
   current: BillingStatusPayload | null,
+
   clearedScheduledCancel: boolean,
 ): BillingStatusPayload | null {
   if (!current) {
     return null;
   }
+
   const shared = {
     provider: current.provider,
+
     plan_code: current.plan_code,
+
     trial_used: current.trial_used,
+
     trial_used_at: current.trial_used_at,
+
     current_period_ends_at: current.current_period_ends_at,
+
     pending_plan_code: current.pending_plan_code,
+
     pending_plan_effective_at: current.pending_plan_effective_at,
+
     pending_cancel_effective_at: null as string | null,
+
     has_lemon_billing_history: current.has_lemon_billing_history,
+
     billing_currency: current.billing_currency,
+
+    coaching_subscription: current.coaching_subscription,
+
+    can_start_coaching: current.can_start_coaching,
   };
+
   if (clearedScheduledCancel) {
     return normalizeBillingStatusPayload({
       ...shared,
+
       status: current.status,
+
       entitlement_state: current.entitlement_state,
     });
   }
+
   return normalizeBillingStatusPayload({
     ...shared,
+
     status: 'active',
+
     entitlement_state: 'active',
   });
 }
 
 /** 楽観更新を cache に載せ、他コンポーネントへ通知する */
+
 export function primeBillingStatusCache(payload: BillingStatusPayload): void {
   cache = { payload, fetchedAt: Date.now() };
+
   notifyBillingRefresh();
 }
 
 export async function fetchBillingStatusPayload(
   accessToken: string | null,
+
   options: FetchBillingStatusOptions = {},
 ): Promise<BillingStatusPayload | null> {
   if (!accessToken) {
     return null;
   }
+
   const generationAtStart = options.generation ?? fetchGeneration;
+
   if (!options.force && cache && Date.now() - cache.fetchedAt < CACHE_MS) {
     return cache.payload;
   }
+
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
   if (!supabaseUrl) {
     return null;
   }
+
   const res = await fetch(`${supabaseUrl}/functions/v1/billing-status`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+
     cache: 'no-store',
   });
+
   if (!res.ok) {
     return null;
   }
+
   const raw = (await res.json()) as Partial<BillingStatusPayload>;
-  if (typeof raw.provider !== 'string' || typeof raw.entitlement_state !== 'string' || typeof raw.status !== 'string') {
+
+  if (
+    typeof raw.provider !== 'string' ||
+    typeof raw.entitlement_state !== 'string' ||
+    typeof raw.status !== 'string'
+  ) {
     return null;
   }
+
   const payload = normalizeBillingStatusPayload({
     provider: raw.provider,
+
     status: raw.status,
+
     entitlement_state: raw.entitlement_state,
+
     plan_code: raw.plan_code,
+
     trial_used: raw.trial_used,
+
     trial_used_at: raw.trial_used_at,
+
     current_period_ends_at: raw.current_period_ends_at,
+
     pending_plan_code: raw.pending_plan_code,
+
     pending_plan_effective_at: raw.pending_plan_effective_at,
+
     pending_cancel_effective_at: raw.pending_cancel_effective_at,
+
     next_billing_amount_jpy: raw.next_billing_amount_jpy,
+
     next_billing_amount_usd: raw.next_billing_amount_usd,
+
     billing_currency: raw.billing_currency,
+
     can_change_plan: raw.can_change_plan,
+
     can_resume: raw.can_resume,
+
     can_manage_payment: raw.can_manage_payment,
+
     can_cancel_pending_plan_change: raw.can_cancel_pending_plan_change,
+
     has_lemon_billing_history: raw.has_lemon_billing_history,
+
+    coaching_subscription: raw.coaching_subscription,
+
+    can_start_coaching: raw.can_start_coaching,
   });
+
   if (generationAtStart === fetchGeneration) {
     cache = { payload, fetchedAt: Date.now() };
   }
+
   return payload;
 }
 
 /**
+
  * 課金操作後に呼ぶ。キャッシュを破棄し、全フックへ再取得を通知したうえで最新 payload を返す。
+
  */
+
 export async function refreshBillingStatusPayload(
   accessToken: string | null,
 ): Promise<BillingStatusPayload | null> {
   const generation = beginBillingStatusRefresh();
+
   if (!accessToken) {
     return null;
   }
+
   return fetchBillingStatusPayload(accessToken, { force: true, generation });
 }
 
@@ -247,17 +440,18 @@ export function bannerVariantFromPayload(
   if (!payload) {
     return null;
   }
+
   return resolvePaymentIssueBanner(payload.provider, payload.entitlement_state);
 }
 
-export function nextBillingAmountFromPayload(
-  payload: BillingStatusPayload | null,
-): number | null {
+export function nextBillingAmountFromPayload(payload: BillingStatusPayload | null): number | null {
   if (!payload) {
     return null;
   }
+
   if (payload.billing_currency === 'USD') {
     return payload.next_billing_amount_usd;
   }
+
   return payload.next_billing_amount_jpy;
 }

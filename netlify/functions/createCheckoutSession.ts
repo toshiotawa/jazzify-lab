@@ -1,114 +1,122 @@
 import type { Handler } from '@netlify/functions';
-import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+
+import type Stripe from 'stripe';
+
 import { resolveSiteUrl } from './utils/resolveSiteUrl';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) {
-  throw new Error('STRIPE_SECRET_KEY が設定されていません');
-}
+import {
+  authenticateRequest,
+  billingCorsHeaders,
+  getStripeClient,
+  isActiveEntitlementState,
+  resolveStripePriceByLookupKey,
+  stripeLookupKeyForPlan,
+  stripePlanCodeForLookupKey,
+  userHasCurrentCoaching,
+  userHasPaidPremiumForCoaching,
+  type StripePlanTarget,
+  type StripeProductKind,
+} from './lib/stripeBilling';
 
-const supabaseUrl =
-  process.env.SUPABASE_URL ??
-  process.env.VITE_SUPABASE_URL ??
-  process.env.SUPABASE_SERVICE_ROLE_URL;
+type CheckoutRequestBody = {
+  product?: unknown;
 
-if (!supabaseUrl) {
-  throw new Error('SUPABASE_URL か VITE_SUPABASE_URL が設定されていません');
-}
+  plan?: unknown;
+};
 
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseServiceRoleKey) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY が設定されていません');
-}
+const isStripeProductKind = (value: unknown): value is StripeProductKind =>
+  value === 'premium' || value === 'coaching';
 
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2023-10-16',
-});
+const isStripePlanTarget = (value: unknown): value is StripePlanTarget =>
+  value === 'monthly' || value === 'yearly';
 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const normalizeCountry = (value: string | null | undefined): string | null =>
+  value ? value.trim().toUpperCase() : null;
 
 export const handler: Handler = async (event, _context) => {
-  // CORS headers
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers };
+    return { statusCode: 200, headers: billingCorsHeaders };
   }
 
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers,
+
+      headers: billingCorsHeaders,
+
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
   try {
-    const { priceId } = JSON.parse(event.body ?? '{}');
-
-    if (!priceId || typeof priceId !== 'string') {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'priceId is required' }),
-      };
-    }
-
     const siteUrl = resolveSiteUrl(event.headers);
+
     if (!siteUrl) {
       return {
         statusCode: 500,
-        headers,
+
+        headers: billingCorsHeaders,
+
         body: JSON.stringify({
           error: 'Site URL is not configured. Please set SITE_URL or DEPLOY_URL.',
         }),
       };
     }
 
-    // Authorization headerからJWTトークンを取得
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
+    const body = JSON.parse(event.body ?? '{}') as CheckoutRequestBody;
+
+    const productKind = isStripeProductKind(body.product) ? body.product : 'premium';
+
+    const planTarget = isStripePlanTarget(body.plan) ? body.plan : 'monthly';
+
+    if (productKind === 'coaching' && planTarget === 'yearly') {
       return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Authorization header required' }),
+        statusCode: 400,
+
+        headers: billingCorsHeaders,
+
+        body: JSON.stringify({ error: 'Coaching is monthly only' }),
       };
     }
 
-    // JWTトークンを使用してユーザーを認証
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    const authHeader = event.headers.authorization || event.headers.Authorization;
 
-    if (authError || !user) {
+    const authResult = await authenticateRequest(authHeader);
+
+    if ('error' in authResult) {
       return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Unauthorized' }),
+        statusCode: authResult.statusCode,
+
+        headers: billingCorsHeaders,
+
+        body: JSON.stringify({ error: authResult.error }),
       };
     }
 
-    // ユーザープロフィールを取得
+    const { supabase, userId } = authResult;
+
     const { data: profile, error: profileError } = await supabase
+
       .from('profiles')
-      .select('stripe_customer_id, email, country')
-      .eq('id', user.id)
+
+      .select('stripe_customer_id, email, country, lemon_trial_used, stripe_trial_start')
+
+      .eq('id', userId)
+
       .single();
 
     if (profileError) {
       return {
         statusCode: 500,
-        headers,
+
+        headers: billingCorsHeaders,
+
         body: JSON.stringify({ error: 'Failed to fetch user profile' }),
       };
     }
 
-    const normalizedCountry = profile?.country ? String(profile.country).trim().toUpperCase() : null;
+    const normalizedCountry = normalizeCountry(profile?.country ?? null);
+
     if (
       normalizedCountry &&
       normalizedCountry !== 'JP' &&
@@ -117,98 +125,225 @@ export const handler: Handler = async (event, _context) => {
     ) {
       return {
         statusCode: 400,
-        headers,
+
+        headers: billingCorsHeaders,
+
         body: JSON.stringify({
-          error: 'Stripe checkout is available only for Japan users. Please use the global checkout.',
+          error:
+            'Stripe checkout is available only for Japan users. Please use the global checkout.',
         }),
       };
     }
 
+    const { data: subscriptionRow } = await supabase
+
+      .from('subscriptions')
+
+      .select('provider, entitlement_state, status, trial_used, pending_cancel_status')
+
+      .eq('user_id', userId)
+
+      .maybeSingle();
+
+    if (
+      productKind === 'premium' &&
+      subscriptionRow &&
+      isActiveEntitlementState(subscriptionRow.entitlement_state)
+    ) {
+      return {
+        statusCode: 409,
+
+        headers: billingCorsHeaders,
+
+        body: JSON.stringify({ error: 'Premium subscription is already active' }),
+      };
+    }
+
+    if (productKind === 'coaching') {
+      const eligible = await userHasPaidPremiumForCoaching(supabase, userId);
+
+      if (!eligible) {
+        return {
+          statusCode: 403,
+
+          headers: billingCorsHeaders,
+
+          body: JSON.stringify({ error: 'Coaching requires an active paid Premium subscription' }),
+        };
+      }
+
+      if (await userHasCurrentCoaching(supabase, userId)) {
+        return {
+          statusCode: 409,
+
+          headers: billingCorsHeaders,
+
+          body: JSON.stringify({ error: 'Coaching subscription is already active' }),
+        };
+      }
+    }
+
+    const stripe = getStripeClient();
+
     let customerId = profile.stripe_customer_id;
 
-    // Stripe顧客が存在しない場合は作成
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: profile.email,
+
         metadata: {
-          supabase_user_id: user.id,
+          supabase_user_id: userId,
         },
       });
 
       customerId = customer.id;
 
-      // データベースにStripe Customer IDを保存
       await supabase
+
         .from('profiles')
+
         .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
+
+        .eq('id', userId);
     }
 
-    // 既存サブスクリプションがあればBilling Portalへ誘導
-    const existingSubs = await stripe.subscriptions.list({
-      customer: customerId,
-      status: 'all',
-      limit: 1,
-      expand: ['data.items'],
-    });
+    const lookupKey = stripeLookupKeyForPlan(productKind, planTarget);
 
-    if (existingSubs.data.length > 0) {
-      const portalSession = await stripe.billingPortal.sessions.create({
-        customer: customerId,
-        return_url: `${siteUrl}/main#account`,
-      });
+    const price = await resolveStripePriceByLookupKey(stripe, lookupKey);
+
+    const planCode = stripePlanCodeForLookupKey(lookupKey);
+
+    const trialAlreadyUsed =
+      subscriptionRow?.trial_used === true ||
+      profile.lemon_trial_used === true ||
+      profile.stripe_trial_start != null;
+
+    const { data: checkoutIntent, error: intentError } = await supabase
+
+      .from('checkout_intents')
+
+      .insert({
+        user_id: userId,
+
+        provider: 'stripe',
+
+        product_kind: productKind,
+
+        plan_code: planCode,
+
+        price_lookup_key: lookupKey,
+
+        provider_customer_id: customerId,
+
+        livemode: price.livemode,
+      })
+
+      .select('id')
+
+      .single();
+
+    if (intentError || !checkoutIntent) {
       return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          url: portalSession.url,
-          via: 'portal',
-        }),
+        statusCode: 500,
+
+        headers: billingCorsHeaders,
+
+        body: JSON.stringify({ error: 'Failed to create checkout intent' }),
       };
     }
 
-    // Checkout Sessionの設定（初回のみ）
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
+
       mode: 'subscription',
+
       line_items: [
         {
-          price: priceId,
+          price: price.id,
+
           quantity: 1,
         },
       ],
+
       success_url: `${siteUrl}/main#account?session_id={CHECKOUT_SESSION_ID}`,
+
       cancel_url: `${siteUrl}/main#account`,
-      subscription_data: {},
+
+      automatic_tax: { enabled: true },
+
       customer_update: {
         address: 'auto',
       },
+
+      client_reference_id: userId,
+
+      metadata: {
+        checkout_intent_id: checkoutIntent.id,
+
+        user_id: userId,
+
+        product_kind: productKind,
+
+        price_lookup_key: lookupKey,
+      },
+
+      subscription_data: {
+        metadata: {
+          checkout_intent_id: checkoutIntent.id,
+
+          user_id: userId,
+
+          product_kind: productKind,
+
+          price_lookup_key: lookupKey,
+        },
+
+        description:
+          productKind === 'coaching'
+            ? 'Jazzify coaching add-on subscription'
+            : 'Jazzify Premium subscription',
+
+        ...(productKind === 'premium' && !trialAlreadyUsed ? { trial_period_days: 7 } : {}),
+      },
     };
-
-    // すべての初回チェックアウトに7日間のトライアルを付与
-    sessionConfig.subscription_data!.trial_period_days = 7;
-
-    // 既存サブスクリプションがある顧客はCustomer Portalにリダイレクト
-    sessionConfig.subscription_data!.description = 'Jazz Learning Game Subscription';
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
 
+    await supabase
+
+      .from('checkout_intents')
+
+      .update({
+        provider_checkout_session_id: session.id,
+
+        status: 'checkout_created',
+      })
+
+      .eq('id', checkoutIntent.id);
+
     return {
       statusCode: 200,
-      headers,
+
+      headers: billingCorsHeaders,
+
       body: JSON.stringify({
         sessionId: session.id,
+
         url: session.url,
       }),
     };
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
     return {
       statusCode: 500,
-      headers,
+
+      headers: billingCorsHeaders,
+
       body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message,
+
+        details: message,
       }),
     };
   }

@@ -7,132 +7,268 @@ describe('normalizeBillingStatusPayload', () => {
   it('derives can_* flags when API omits them (pre-deploy billing-status)', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_monthly',
+
       trial_used: false,
+
       current_period_ends_at: '2026-07-12T00:00:00.000Z',
     });
+
     expect(payload.can_change_plan).toBe(true);
+
     expect(payload.can_cancel_pending_plan_change).toBe(false);
+
     expect(payload.next_billing_amount_jpy).toBe(3980);
+
     expect(payload.can_manage_payment).toBe(true);
+
     expect(payload.can_resume).toBe(false);
+  });
+
+  it('derives Stripe capabilities for in-house account actions', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'stripe',
+
+      status: 'active',
+
+      entitlement_state: 'active',
+
+      plan_code: 'core_yearly',
+
+      trial_used: false,
+
+      current_period_ends_at: '2027-01-12T00:00:00.000Z',
+    });
+
+    expect(payload.can_change_plan).toBe(true);
+
+    expect(payload.can_manage_payment).toBe(true);
+
+    expect(payload.can_resume).toBe(false);
+
+    expect(payload.next_billing_amount_jpy).toBe(34800);
+  });
+
+  it('normalizes coaching add-on status separately from Premium', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'stripe',
+
+      status: 'active',
+
+      entitlement_state: 'active',
+
+      plan_code: 'core_monthly',
+
+      coaching_subscription: {
+        provider: 'stripe',
+
+        status: 'active',
+
+        entitlement_state: 'active',
+
+        current_period_ends_at: '2027-01-12T00:00:00.000Z',
+
+        pending_cancel_effective_at: null,
+
+        next_billing_amount_jpy: 9800,
+
+        billing_currency: 'JPY',
+      },
+    });
+
+    expect(payload.coaching_subscription?.provider).toBe('stripe');
+
+    expect(payload.coaching_subscription?.next_billing_amount_jpy).toBe(9800);
+
+    expect(payload.can_start_coaching).toBe(false);
   });
 
   it('derives pending plan capabilities and next billing amount', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_monthly',
+
       pending_plan_code: 'core_yearly',
+
       pending_plan_effective_at: '2026-07-12T00:00:00.000Z',
+
       trial_used: false,
+
       current_period_ends_at: '2026-07-12T00:00:00.000Z',
     });
+
     expect(payload.can_change_plan).toBe(false);
+
     expect(payload.can_cancel_pending_plan_change).toBe(true);
+
     expect(payload.next_billing_amount_jpy).toBe(34800);
+
     expect(payload.billing_currency).toBe('JPY');
   });
 
   it('derives USD next billing amount when billing_currency is USD', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_monthly',
+
       billing_currency: 'USD',
+
       trial_used: false,
+
       current_period_ends_at: '2026-07-12T00:00:00.000Z',
     });
+
     expect(payload.next_billing_amount_jpy).toBeNull();
+
     expect(payload.next_billing_amount_usd).toBe(24.99);
+
     expect(payload.billing_currency).toBe('USD');
   });
 
   it('derives resume when cancellation is scheduled', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_yearly',
+
       pending_cancel_effective_at: '2027-06-12T05:30:46.000000Z',
+
       trial_used: false,
+
       current_period_ends_at: '2027-06-12T05:30:46.000000Z',
     });
+
     expect(payload.can_resume).toBe(true);
+
     expect(payload.can_change_plan).toBe(false);
+
     expect(payload.next_billing_amount_jpy).toBeNull();
   });
 
   it('preserves explicit false from API', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'canceled',
+
       entitlement_state: 'cancelled_but_active_until_end',
+
       plan_code: 'core_monthly',
+
       trial_used: true,
+
       can_change_plan: false,
+
       can_resume: true,
+
       can_manage_payment: true,
     });
+
     expect(payload.can_change_plan).toBe(false);
+
     expect(payload.can_resume).toBe(true);
   });
 
   it('defaults has_lemon_billing_history to false when omitted', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'apple',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_monthly',
     });
+
     expect(payload.has_lemon_billing_history).toBe(false);
   });
 
   it('preserves has_lemon_billing_history from API', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'apple',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_monthly',
+
       has_lemon_billing_history: true,
     });
+
     expect(payload.has_lemon_billing_history).toBe(true);
   });
 
   it('optimistically clears scheduled cancellation for immediate UI', () => {
     const scheduled = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'active',
+
       entitlement_state: 'active',
+
       plan_code: 'core_monthly',
+
       pending_cancel_effective_at: '2027-06-12T05:30:46.000000Z',
+
       trial_used: false,
+
       current_period_ends_at: '2027-06-12T05:30:46.000000Z',
     });
+
     const optimistic = applyOptimisticBillingAfterResume(scheduled, true);
+
     expect(optimistic?.pending_cancel_effective_at).toBeNull();
+
     expect(optimistic?.can_resume).toBe(false);
+
     expect(optimistic?.can_change_plan).toBe(true);
+
     expect(optimistic?.next_billing_amount_jpy).toBe(3980);
   });
 
   it('optimistically restores active billing after Lemon resume', () => {
     const cancelledGrace = normalizeBillingStatusPayload({
       provider: 'lemon',
+
       status: 'canceled',
+
       entitlement_state: 'cancelled_but_active_until_end',
+
       plan_code: 'core_yearly',
+
       trial_used: false,
+
       current_period_ends_at: '2027-06-12T05:30:46.000000Z',
     });
+
     const optimistic = applyOptimisticBillingAfterResume(cancelledGrace, false);
+
     expect(optimistic?.entitlement_state).toBe('active');
+
     expect(optimistic?.can_resume).toBe(false);
+
     expect(optimistic?.can_change_plan).toBe(true);
+
     expect(optimistic?.next_billing_amount_jpy).toBe(34800);
   });
 });

@@ -1,4 +1,5 @@
 import type { BillingStatusPayload } from '@/utils/billingStatusClient';
+
 import {
   effectiveRankForAccess,
   getDisplayMembershipTier,
@@ -11,35 +12,59 @@ import {
 
 const payload = (entitlement_state: string): BillingStatusPayload => ({
   provider: 'apple',
+
   status: 'active',
+
   entitlement_state,
+
   plan_code: 'core_monthly',
+
   trial_used: false,
+
   trial_used_at: null,
+
   current_period_ends_at: null,
+
   pending_plan_code: null,
+
   pending_plan_effective_at: null,
+
   pending_cancel_effective_at: null,
+
   next_billing_amount_jpy: 3980,
+
   next_billing_amount_usd: null,
+
   billing_currency: 'JPY',
+
   can_change_plan: false,
+
   can_resume: false,
+
   can_manage_payment: false,
+
   can_cancel_pending_plan_change: false,
+
   has_lemon_billing_history: false,
+
+  coaching_subscription: null,
+
+  can_start_coaching: false,
 });
 
 describe('membershipDisplay', () => {
   describe('isBillingEntitlementPremium', () => {
     it('returns true for active-like entitlements', () => {
       expect(isBillingEntitlementPremium(payload('active'))).toBe(true);
+
       expect(isBillingEntitlementPremium(payload('payment_issue_with_access'))).toBe(true);
+
       expect(isBillingEntitlementPremium(payload('cancelled_but_active_until_end'))).toBe(true);
     });
 
     it('returns false for inactive entitlements', () => {
       expect(isBillingEntitlementPremium(payload('expired'))).toBe(false);
+
       expect(isBillingEntitlementPremium(payload('payment_issue_no_access'))).toBe(false);
     });
   });
@@ -47,12 +72,15 @@ describe('membershipDisplay', () => {
   describe('isPremiumForDisplay', () => {
     it('uses billing when payload is present', () => {
       expect(isPremiumForDisplay('free', payload('active'))).toBe(true);
+
       expect(isPremiumForDisplay('premium', payload('expired'))).toBe(false);
     });
 
     it('falls back to rank when billing is null', () => {
       expect(isPremiumForDisplay('free', null)).toBe(false);
+
       expect(isPremiumForDisplay('premium', null)).toBe(true);
+
       expect(isPremiumForDisplay('standard', null)).toBe(true);
     });
   });
@@ -60,14 +88,21 @@ describe('membershipDisplay', () => {
   describe('getDisplayMembershipTier', () => {
     it('matches isPremiumForDisplay', () => {
       expect(getDisplayMembershipTier('free', payload('active'))).toBe('premium');
+
       expect(getDisplayMembershipTier('premium', payload('expired'))).toBe('free');
     });
   });
 
   describe('getMembershipDisplayLabel', () => {
     it('returns localized labels from display tier with plan interval when available', () => {
-      expect(getMembershipDisplayLabel('free', payload('active'), 'ja')).toBe('プレミアム（月額プラン）');
-      expect(getMembershipDisplayLabel('free', payload('active'), 'en')).toBe('Premium (Monthly plan)');
+      expect(getMembershipDisplayLabel('free', payload('active'), 'ja')).toBe(
+        'プレミアム（月額プラン）',
+      );
+
+      expect(getMembershipDisplayLabel('free', payload('active'), 'en')).toBe(
+        'Premium (Monthly plan)',
+      );
+
       expect(getMembershipDisplayLabel('free', null, 'ja')).toBe('フリー');
     });
   });
@@ -75,7 +110,14 @@ describe('membershipDisplay', () => {
   describe('hasNonExpiredBillingProvider', () => {
     it('returns true for active apple or lemon billing', () => {
       expect(hasNonExpiredBillingProvider(payload('active'), 'apple')).toBe(true);
-      expect(hasNonExpiredBillingProvider({ ...payload('active'), provider: 'lemon' }, 'lemon')).toBe(true);
+
+      expect(
+        hasNonExpiredBillingProvider({ ...payload('active'), provider: 'lemon' }, 'lemon'),
+      ).toBe(true);
+
+      expect(
+        hasNonExpiredBillingProvider({ ...payload('active'), provider: 'stripe' }, 'stripe'),
+      ).toBe(true);
     });
 
     it('returns true for apple billing retry (payment_issue_no_access)', () => {
@@ -84,22 +126,33 @@ describe('membershipDisplay', () => {
 
     it('returns false when entitlement is expired even if provider row remains', () => {
       expect(hasNonExpiredBillingProvider(payload('expired'), 'apple')).toBe(false);
-      expect(hasNonExpiredBillingProvider({ ...payload('expired'), provider: 'lemon' }, 'lemon')).toBe(false);
+
+      expect(
+        hasNonExpiredBillingProvider({ ...payload('expired'), provider: 'lemon' }, 'lemon'),
+      ).toBe(false);
+
+      expect(
+        hasNonExpiredBillingProvider({ ...payload('expired'), provider: 'stripe' }, 'stripe'),
+      ).toBe(false);
     });
 
     it('returns false when provider does not match', () => {
       expect(hasNonExpiredBillingProvider(payload('active'), 'lemon')).toBe(false);
+
       expect(hasNonExpiredBillingProvider(null, 'apple')).toBe(false);
     });
   });
 
   describe('hasLemonBillingHistory', () => {
     it('returns true when has_lemon_billing_history is true', () => {
-      expect(hasLemonBillingHistory({ ...payload('active'), has_lemon_billing_history: true })).toBe(true);
+      expect(
+        hasLemonBillingHistory({ ...payload('active'), has_lemon_billing_history: true }),
+      ).toBe(true);
     });
 
     it('returns false when flag is false or payload is null', () => {
       expect(hasLemonBillingHistory(payload('active'))).toBe(false);
+
       expect(hasLemonBillingHistory(null)).toBe(false);
     });
   });
