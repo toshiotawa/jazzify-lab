@@ -122,23 +122,33 @@ export const handler: Handler = async (event) => {
     const schedule = await stripe.subscriptionSchedules.create({ from_subscription: current.id });
     const phaseStart = schedule.current_phase?.start_date ?? current.current_period_start;
     const quantity = currentItem.quantity ?? 1;
+    const trialEnd =
+      typeof current.trial_end === 'number' && current.trial_end > Math.floor(Date.now() / 1000)
+        ? current.trial_end
+        : undefined;
 
-    await stripe.subscriptionSchedules.update(schedule.id, {
-      end_behavior: 'release',
-      phases: [
-        {
-          start_date: phaseStart,
-          end_date: current.current_period_end,
-          items: [{ price: currentPriceId, quantity }],
-          proration_behavior: 'none',
-        },
-        {
-          start_date: current.current_period_end,
-          items: [{ price: price.id, quantity }],
-          proration_behavior: 'none',
-        },
-      ],
-    });
+    try {
+      await stripe.subscriptionSchedules.update(schedule.id, {
+        end_behavior: 'release',
+        phases: [
+          {
+            start_date: phaseStart,
+            end_date: current.current_period_end,
+            items: [{ price: currentPriceId, quantity }],
+            proration_behavior: 'none',
+            ...(trialEnd ? { trial_end: trialEnd } : {}),
+          },
+          {
+            start_date: current.current_period_end,
+            items: [{ price: price.id, quantity }],
+            proration_behavior: 'none',
+          },
+        ],
+      });
+    } catch (error) {
+      await stripe.subscriptionSchedules.release(schedule.id).catch(() => undefined);
+      throw error;
+    }
 
     const refreshed = await retrieveExpandedStripeSubscription(stripe, current.id);
     await mirrorStripeSubscription(supabase, refreshed);

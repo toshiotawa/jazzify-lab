@@ -1,10 +1,13 @@
-import { cancelLemonSubscriptionRequest, resumeLemonSubscription } from '@/utils/lemonBillingClient';
+import {
+  cancelLemonSubscriptionRequest,
+  resumeLemonSubscription,
+} from '@/utils/lemonBillingClient';
 import {
   cancelStripeSubscriptionRequest,
   resumeStripeSubscription,
 } from '@/utils/stripeBillingClient';
 
-export type BillingProductTarget = 'premium' | 'coaching';
+type BillingProductTarget = 'premium' | 'coaching';
 
 export async function cancelSubscriptionForProvider(
   provider: string | undefined,
@@ -22,14 +25,12 @@ export async function cancelSubscriptionForProvider(
 export async function resumeSubscriptionForProvider(
   provider: string | undefined,
   product: BillingProductTarget = 'premium',
-  clearedScheduledCancel?: boolean,
 ): Promise<{ ok: boolean; clearedScheduledCancel?: boolean; error?: string }> {
   if (provider === 'stripe') {
     return resumeStripeSubscription(product);
   }
   if (provider === 'lemon' && product === 'premium') {
-    const result = await resumeLemonSubscription();
-    return { ok: result.ok, clearedScheduledCancel, error: result.error };
+    return resumeLemonSubscription();
   }
   return { ok: false, error: 'Unsupported billing provider' };
 }

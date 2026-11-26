@@ -430,7 +430,9 @@ const AccountPage: React.FC = () => {
       } else {
         pushToast(
           result.error ??
-            (isEnglishCopy ? 'Failed to cancel coaching subscription' : 'コーチングの解約に失敗しました'),
+            (isEnglishCopy
+              ? 'Failed to cancel coaching subscription'
+              : 'コーチングの解約に失敗しました'),
           'error',
         );
       }
@@ -603,7 +605,7 @@ const AccountPage: React.FC = () => {
 
   /** deleteAccount と同様: profiles.rank が free かつ課金上もフリー相当のときのみ退会可 */
 
-  const hasActiveCoachingSubscription = billingPayload?.coaching_subscription !== null;
+  const hasActiveCoachingSubscription = billingPayload?.coaching_subscription != null;
 
   const canWithdrawAccount =
     (profile?.rank ?? 'free') === 'free' && !isPremiumMember && !hasActiveCoachingSubscription;
@@ -1458,166 +1460,169 @@ const AccountPage: React.FC = () => {
                     </div>
                   )}
 
-                  {billingPayload && (
-                    <div className="bg-emerald-900/20 rounded-lg p-3 border border-emerald-700/30 mt-2 space-y-2">
-                      <p className="text-sm text-emerald-200 font-semibold mb-1">
-                        {isEnglishCopy ? 'Personal coaching' : '個別コーチング'}
-                      </p>
+                  {billingPayload &&
+                    (billingPayload.coaching_subscription ||
+                      (!isIOSWebView() && billingCurrency === 'JPY')) && (
+                      <div className="bg-emerald-900/20 rounded-lg p-3 border border-emerald-700/30 mt-2 space-y-2">
+                        <p className="text-sm text-emerald-200 font-semibold mb-1">
+                          {isEnglishCopy ? 'Personal coaching' : '個別コーチング'}
+                        </p>
 
-                      {billingPayload.coaching_subscription ? (
-                        <>
-                          {(() => {
-                            const coachingSub = billingPayload.coaching_subscription;
-                            const pendingCancel =
-                              coachingSub.pending_cancel_effective_at != null ||
-                              coachingSub.entitlement_state === 'cancelled_but_active_until_end';
+                        {billingPayload.coaching_subscription ? (
+                          <>
+                            {(() => {
+                              const coachingSub = billingPayload.coaching_subscription;
+                              const pendingCancel =
+                                coachingSub.pending_cancel_effective_at != null ||
+                                coachingSub.entitlement_state === 'cancelled_but_active_until_end';
 
-                            if (coachingSub.entitlement_state === 'payment_issue_no_access') {
-                              return (
-                                <p className="text-xs text-red-300">
-                                  {isEnglishCopy
-                                    ? 'Coaching billing failed. Update payment to restore access.'
-                                    : 'コーチングのお支払いに問題があります。支払い情報を更新してください。'}
-                                </p>
-                              );
-                            }
+                              if (coachingSub.entitlement_state === 'payment_issue_no_access') {
+                                return (
+                                  <p className="text-xs text-red-300">
+                                    {isEnglishCopy
+                                      ? 'Coaching billing failed. Update payment to restore access.'
+                                      : 'コーチングのお支払いに問題があります。支払い情報を更新してください。'}
+                                  </p>
+                                );
+                              }
 
-                            if (coachingSub.entitlement_state === 'payment_issue_with_access') {
-                              return (
-                                <p className="text-xs text-amber-300">
-                                  {isEnglishCopy
-                                    ? 'There is a payment issue on coaching. Please update your payment method.'
-                                    : 'コーチングのお支払いに問題があります。支払い情報を更新してください。'}
-                                </p>
-                              );
-                            }
+                              if (coachingSub.entitlement_state === 'payment_issue_with_access') {
+                                return (
+                                  <p className="text-xs text-amber-300">
+                                    {isEnglishCopy
+                                      ? 'There is a payment issue on coaching. Please update your payment method.'
+                                      : 'コーチングのお支払いに問題があります。支払い情報を更新してください。'}
+                                  </p>
+                                );
+                              }
 
-                            if (pendingCancel) {
+                              if (pendingCancel) {
+                                return (
+                                  <p className="text-xs text-gray-400">
+                                    {isEnglishCopy
+                                      ? 'Coaching cancellation is scheduled for the end of the current period.'
+                                      : 'コーチングは現在の請求期間の終了時に解約されます。'}
+                                  </p>
+                                );
+                              }
+
                               return (
                                 <p className="text-xs text-gray-400">
                                   {isEnglishCopy
-                                    ? 'Coaching cancellation is scheduled for the end of the current period.'
-                                    : 'コーチングは現在の請求期間の終了時に解約されます。'}
+                                    ? 'Coaching add-on is active as a separate subscription.'
+                                    : '個別コーチングはPremiumとは別契約として有効です。'}
                                 </p>
                               );
-                            }
+                            })()}
 
-                            return (
+                            {formatPeriodEnd(
+                              billingPayload.coaching_subscription.pending_cancel_effective_at ??
+                                billingPayload.coaching_subscription.current_period_ends_at,
+                            ) && (
                               <p className="text-xs text-gray-400">
-                                {isEnglishCopy
-                                  ? 'Coaching add-on is active as a separate subscription.'
-                                  : '個別コーチングはPremiumとは別契約として有効です。'}
+                                {billingPayload.coaching_subscription.pending_cancel_effective_at !=
+                                null
+                                  ? isEnglishCopy
+                                    ? `Coaching ends: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
+                                    : `コーチング終了日: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
+                                  : isEnglishCopy
+                                    ? `Next renewal: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`
+                                    : `次回更新日: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`}
                               </p>
-                            );
-                          })()}
+                            )}
 
-                          {formatPeriodEnd(
-                            billingPayload.coaching_subscription.pending_cancel_effective_at ??
-                              billingPayload.coaching_subscription.current_period_ends_at,
-                          ) && (
-                            <p className="text-xs text-gray-400">
-                              {billingPayload.coaching_subscription.pending_cancel_effective_at !=
-                              null
-                                ? isEnglishCopy
-                                  ? `Coaching ends: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
-                                  : `コーチング終了日: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
-                                : isEnglishCopy
-                                  ? `Next renewal: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`
-                                  : `次回更新日: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`}
-                            </p>
-                          )}
-
-                          {billingPayload.coaching_subscription.can_resume && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary w-full"
-                              disabled={billingActionLoading !== null}
-                              onClick={() => void handleResumeCoachingSubscription()}
-                            >
-                              {billingActionLoading === 'coaching_resume'
-                                ? isEnglishCopy
-                                  ? 'Processing…'
-                                  : '処理中…'
-                                : isEnglishCopy
-                                  ? 'Resume coaching'
-                                  : 'コーチングの解約を取り消す'}
-                            </button>
-                          )}
-
-                          {billingPayload.coaching_subscription.can_cancel && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline w-full text-red-300 border-red-700/50"
-                              disabled={billingActionLoading !== null}
-                              onClick={() => setShowCoachingCancelConfirm(true)}
-                            >
-                              {billingActionLoading === 'coaching_cancel'
-                                ? isEnglishCopy
-                                  ? 'Processing…'
-                                  : '処理中…'
-                                : isEnglishCopy
-                                  ? 'Cancel coaching'
-                                  : 'コーチングを解約する'}
-                            </button>
-                          )}
-
-                          {billingPayload.coaching_subscription.can_manage_payment &&
-                            billingPayload.coaching_subscription.provider === 'stripe' &&
-                            !showStripeBillingPortal && (
+                            {billingPayload.coaching_subscription.can_resume && (
                               <button
                                 type="button"
-                                className="btn btn-sm btn-outline w-full"
+                                className="btn btn-sm btn-primary w-full"
                                 disabled={billingActionLoading !== null}
-                                onClick={() => void handleCoachingPaymentMethod()}
+                                onClick={() => void handleResumeCoachingSubscription()}
                               >
-                                {billingActionLoading === 'coaching_payment'
+                                {billingActionLoading === 'coaching_resume'
+                                  ? isEnglishCopy
+                                    ? 'Processing…'
+                                    : '処理中…'
+                                  : isEnglishCopy
+                                    ? 'Resume coaching'
+                                    : 'コーチングの解約を取り消す'}
+                              </button>
+                            )}
+
+                            {billingPayload.coaching_subscription.can_cancel && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline w-full text-red-300 border-red-700/50"
+                                disabled={billingActionLoading !== null}
+                                onClick={() => setShowCoachingCancelConfirm(true)}
+                              >
+                                {billingActionLoading === 'coaching_cancel'
+                                  ? isEnglishCopy
+                                    ? 'Processing…'
+                                    : '処理中…'
+                                  : isEnglishCopy
+                                    ? 'Cancel coaching'
+                                    : 'コーチングを解約する'}
+                              </button>
+                            )}
+
+                            {billingPayload.coaching_subscription.can_manage_payment &&
+                              billingPayload.coaching_subscription.provider === 'stripe' &&
+                              !isIOSWebView() &&
+                              !showStripeBillingPortal && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline w-full"
+                                  disabled={billingActionLoading !== null}
+                                  onClick={() => void handleCoachingPaymentMethod()}
+                                >
+                                  {billingActionLoading === 'coaching_payment'
+                                    ? isEnglishCopy
+                                      ? 'Opening…'
+                                      : '開いています…'
+                                    : isEnglishCopy
+                                      ? 'Update coaching payment method'
+                                      : 'コーチングの支払い方法を変更する'}
+                                </button>
+                              )}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-gray-400">
+                              {isEnglishCopy
+                                ? 'Monthly ¥9,800 via Stripe. Premium and coaching are billed separately.'
+                                : '月額9,800円（税込）。Premiumとは別契約・別請求です。'}
+                            </p>
+
+                            {showCoachingCheckoutButton ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary w-full"
+                                disabled={billingActionLoading !== null}
+                                onClick={() => void handleStartCoachingCheckout()}
+                              >
+                                {billingActionLoading === 'coaching_checkout'
                                   ? isEnglishCopy
                                     ? 'Opening…'
                                     : '開いています…'
                                   : isEnglishCopy
-                                    ? 'Update coaching payment method'
-                                    : 'コーチングの支払い方法を変更する'}
+                                    ? 'Apply for coaching'
+                                    : '個別コーチングを申し込む'}
                               </button>
+                            ) : (
+                              <p className="text-xs text-amber-300">
+                                {coachingCheckoutEnabled
+                                  ? isEnglishCopy
+                                    ? 'Coaching applications are available only for eligible JP Stripe billing outside iOS WebView.'
+                                    : '個別コーチングの申込は、対象の国内Stripe課金かつiOS WebView外でのみ利用できます。'
+                                  : isEnglishCopy
+                                    ? 'Coaching applications are being prepared.'
+                                    : '個別コーチングの申込受付は準備中です。'}
+                              </p>
                             )}
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-xs text-gray-400">
-                            {isEnglishCopy
-                              ? 'Monthly ¥9,800 via Stripe. Premium and coaching are billed separately.'
-                              : '月額9,800円（税込）。Premiumとは別契約・別請求です。'}
-                          </p>
-
-                          {showCoachingCheckoutButton ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary w-full"
-                              disabled={billingActionLoading !== null}
-                              onClick={() => void handleStartCoachingCheckout()}
-                            >
-                              {billingActionLoading === 'coaching_checkout'
-                                ? isEnglishCopy
-                                  ? 'Opening…'
-                                  : '開いています…'
-                                : isEnglishCopy
-                                  ? 'Apply for coaching'
-                                  : '個別コーチングを申し込む'}
-                            </button>
-                          ) : (
-                            <p className="text-xs text-amber-300">
-                              {coachingCheckoutEnabled
-                                ? isEnglishCopy
-                                  ? 'Coaching applications are available only for eligible JP Stripe billing outside iOS WebView.'
-                                  : '個別コーチングの申込は、対象の国内Stripe課金かつiOS WebView外でのみ利用できます。'
-                                : isEnglishCopy
-                                  ? 'Coaching applications are being prepared.'
-                                  : '個別コーチングの申込受付は準備中です。'}
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
+                          </>
+                        )}
+                      </div>
+                    )}
 
                   {showLemonBillingHistory && (
                     <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2 space-y-2">

@@ -2,6 +2,7 @@ import {
   getStripeClient,
   isJapanStripeEligible,
   mapStripeSubscriptionStatus,
+  parseStripeBillingProduct,
   resolveExpectedStripeLivemode,
 } from '../../netlify/functions/lib/stripeBilling';
 
@@ -63,5 +64,11 @@ describe('stripe billing helpers', () => {
     expect(isJapanStripeEligible({ country: 'US', preferred_locale: 'ja' })).toBe(false);
     expect(isJapanStripeEligible({ preferred_locale: 'ja' })).toBe(true);
     expect(isJapanStripeEligible({ preferred_locale: 'en' })).toBe(false);
+  });
+
+  it('rejects invalid billing product JSON instead of defaulting to premium', () => {
+    expect(parseStripeBillingProduct('{not json')).toBe('invalid');
+    expect(parseStripeBillingProduct(JSON.stringify({ product: 'coaching' }))).toBe('coaching');
+    expect(parseStripeBillingProduct(null)).toBe('premium');
   });
 });

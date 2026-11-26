@@ -2,7 +2,7 @@ import type { PaywallSource } from '@/utils/analytics/paywallSource';
 import type { BillingCurrency } from '@/utils/billingCurrency';
 import { PREMIUM_PRICING_JPY, PREMIUM_PRICING_USD } from '@/utils/premiumPricing';
 
-export interface WebPaywallResolvedCopy {
+interface WebPaywallResolvedCopy {
   headline: string;
   subheadline: string;
   features: readonly string[];
@@ -11,7 +11,7 @@ export interface WebPaywallResolvedCopy {
   ctaFootnote?: string;
 }
 
-export type WebPaywallSelectedPlan = 'monthly' | 'yearly';
+type WebPaywallSelectedPlan = 'monthly' | 'yearly';
 
 const planPricePhrase = (
   currency: BillingCurrency,
@@ -29,7 +29,9 @@ const planPricePhrase = (
       : `月額¥${PREMIUM_PRICING_JPY.monthly.toLocaleString('ja-JP')}`;
   }
   if (currency === 'USD') {
-    return isEnglishCopy ? `$${PREMIUM_PRICING_USD.yearly}/year` : `$${PREMIUM_PRICING_USD.yearly}/年`;
+    return isEnglishCopy
+      ? `$${PREMIUM_PRICING_USD.yearly}/year`
+      : `$${PREMIUM_PRICING_USD.yearly}/年`;
   }
   return isEnglishCopy
     ? `¥${PREMIUM_PRICING_JPY.yearly.toLocaleString('en-US')}/year`
@@ -193,9 +195,7 @@ export function resolveWebPaywallCopy(
   if (source === 'main_quest') {
     return {
       headline: base.mainQuestHeadline,
-      subheadline: trialUsed
-        ? base.mainQuestSubheadlineSubscribe
-        : base.mainQuestSubheadlineTrial,
+      subheadline: trialUsed ? base.mainQuestSubheadlineSubscribe : base.mainQuestSubheadlineTrial,
       features: base.features,
       ctaLabel: trialUsed ? base.ctaSubscribeChapter : base.ctaTrialChapter,
       trialUsedNotice,
@@ -230,8 +230,12 @@ export function resolveWebPaywallCopy(
     subheadline: base.subheadline,
     features: base.features,
     ctaLabel: trialUsed
-      ? (chapterOriented ? base.ctaSubscribeChapter : base.ctaSubscribeGeneric)
-      : (chapterOriented ? base.ctaTrialChapter : base.ctaTrialGeneric),
+      ? chapterOriented
+        ? base.ctaSubscribeChapter
+        : base.ctaSubscribeGeneric
+      : chapterOriented
+        ? base.ctaTrialChapter
+        : base.ctaTrialGeneric,
     trialUsedNotice,
     ctaFootnote: trialCtaFootnote,
   };

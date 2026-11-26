@@ -78,6 +78,11 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({ error: 'Cancellation already scheduled', scheduled: true }),
       };
     }
+    if (product === 'premium' && current.schedule) {
+      const scheduleId =
+        typeof current.schedule === 'string' ? current.schedule : current.schedule.id;
+      await stripe.subscriptionSchedules.release(scheduleId);
+    }
 
     const updated = await stripe.subscriptions.update(current.id, {
       cancel_at_period_end: true,

@@ -13,7 +13,9 @@ export type StripeProductKind = 'premium' | 'coaching';
 
 export type StripeBillingProductParam = StripeProductKind | 'invalid';
 
-export const parseStripeBillingProduct = (body: string | null | undefined): StripeBillingProductParam => {
+export const parseStripeBillingProduct = (
+  body: string | null | undefined,
+): StripeBillingProductParam => {
   if (!body?.trim()) return 'premium';
   try {
     const parsed = JSON.parse(body) as { product?: unknown };
@@ -21,7 +23,7 @@ export const parseStripeBillingProduct = (body: string | null | undefined): Stri
     if (parsed.product === 'premium' || parsed.product === 'coaching') return parsed.product;
     return 'invalid';
   } catch {
-    return 'premium';
+    return 'invalid';
   }
 };
 export type StripePlanTarget = 'monthly' | 'yearly';
@@ -402,6 +404,12 @@ const pendingPlanFromSchedule = (
       ? null
       : (nextPrice.lookup_key ?? null);
   const effectiveAt = toIsoStringOrNull(nextPhase?.start_date ?? null);
+  if (
+    typeof nextPhase?.start_date === 'number' &&
+    nextPhase.start_date <= Math.floor(Date.now() / 1000)
+  ) {
+    return { pendingPlanCode: null, pendingPriceId: null, effectiveAt: null };
+  }
   const pendingPlanCode = stripePlanCodeForLookupKey(nextLookupKey);
   if (!nextPriceId || pendingPlanCode === 'unknown' || !effectiveAt) {
     return { pendingPlanCode: null, pendingPriceId: null, effectiveAt: null };

@@ -36,6 +36,24 @@ interface WebPaywallModalProps {
   onContinueFree?: () => void;
 }
 
+const isJapanStripeCheckoutEligible = (
+  profile:
+    | {
+        billing_currency?: string | null;
+        country?: string | null;
+        preferred_locale?: string | null;
+      }
+    | null
+    | undefined,
+): boolean => {
+  if (!profile) return false;
+  if (profile.billing_currency === 'USD') return false;
+  if (profile.billing_currency === 'JPY') return true;
+  const country = profile.country?.trim().toUpperCase() ?? null;
+  if (country) return country === 'JP' || country === 'JPN' || country === 'JAPAN';
+  return profile.preferred_locale !== 'en';
+};
+
 const PRICE_COPY = {
   ja: {
     priceMonthly: '月額 ¥3,980',
@@ -204,7 +222,13 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     profile?.stripe_trial_start != null ||
     billingPayload?.trial_used === true;
 
-  const copy = resolveWebPaywallCopy(source, isEnglishCopy, trialUsed, billingCurrency);
+  const copy = resolveWebPaywallCopy(
+    source,
+    isEnglishCopy,
+    trialUsed,
+    billingCurrency,
+    selectedStripePlan,
+  );
 
   const priceCopy = !isEnglishCopy
     ? PRICE_COPY.ja
@@ -225,6 +249,8 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
         : isEnglishCopy
           ? `7-day free trial, then ¥${stripeSelectedAmount.toLocaleString('en-US')} ${selectedStripePlan === 'yearly' ? '/ year' : '/ month'}. Cancel anytime.`
           : `7日間無料。その後${selectedStripePlan === 'yearly' ? '年額' : '月額'}${stripeSelectedAmount.toLocaleString('ja-JP')}円（税込）。いつでも解約できます。`;
+
+  const useStripeCheckout = billingCurrency === 'JPY' && isJapanStripeCheckoutEligible(profile);
 
   const checkoutBusy = loading || redirecting;
 
@@ -307,7 +333,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     setError(null);
 
     try {
-      if (billingCurrency === 'JPY') {
+      if (useStripeCheckout) {
         const { url, error: checkoutError } = await createStripeCheckoutSession(
           'premium',
 
@@ -368,6 +394,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     priceCopy.checkoutFailed,
     priceCopy.error,
     billingCurrency,
+    useStripeCheckout,
     selectedStripePlan,
     source,
   ]);
@@ -500,7 +527,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
             </>
           )}
 
-          {billingCurrency === 'JPY' && (
+          {useStripeCheckout && (
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"

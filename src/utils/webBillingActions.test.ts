@@ -15,8 +15,14 @@ vi.mock('@/utils/lemonBillingClient', () => ({
   resumeLemonSubscription: vi.fn(),
 }));
 
-import { cancelStripeSubscriptionRequest, resumeStripeSubscription } from '@/utils/stripeBillingClient';
-import { cancelLemonSubscriptionRequest, resumeLemonSubscription } from '@/utils/lemonBillingClient';
+import {
+  cancelStripeSubscriptionRequest,
+  resumeStripeSubscription,
+} from '@/utils/stripeBillingClient';
+import {
+  cancelLemonSubscriptionRequest,
+  resumeLemonSubscription,
+} from '@/utils/lemonBillingClient';
 
 const cancelStripeMock = vi.mocked(cancelStripeSubscriptionRequest);
 const resumeStripeMock = vi.mocked(resumeStripeSubscription);
@@ -44,7 +50,7 @@ describe('webBillingActions', () => {
     resumeLemonMock.mockResolvedValue({ ok: true });
 
     await cancelSubscriptionForProvider('lemon', 'premium');
-    await resumeSubscriptionForProvider('lemon', 'premium', false);
+    await resumeSubscriptionForProvider('lemon', 'premium');
 
     expect(cancelLemonMock).toHaveBeenCalled();
     expect(resumeLemonMock).toHaveBeenCalled();

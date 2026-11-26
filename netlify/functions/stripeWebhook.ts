@@ -14,7 +14,7 @@ interface NetlifyEvent {
   isBase64Encoded?: boolean;
 }
 
-type StripeEventRecordResult = { action: 'process' } | { action: 'duplicate' };
+type StripeEventRecordResult = { action: 'process' } | { action: 'duplicate' } | { action: 'busy' };
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -94,7 +94,7 @@ const recordStripeEventForProcessing = async (
     existing.processing_status === 'received' &&
     (!existing.processed_at || Date.parse(existing.processed_at) < Date.now() - 5 * 60 * 1000);
   if (existing.processing_status === 'failed' || staleReceived) {
-    const { error: updateError } = await supabase
+    let updateQuery = supabase
       .from('subscription_events')
       .update({
         processing_status: 'received',
@@ -102,13 +102,24 @@ const recordStripeEventForProcessing = async (
         processed_at: nowIso,
       })
       .eq('provider', 'stripe')
-      .eq('provider_event_id', stripeEvent.id)
-      .in('processing_status', ['failed', 'received']);
+      .eq('provider_event_id', stripeEvent.id);
+
+    if (existing.processing_status === 'failed') {
+      updateQuery = updateQuery.eq('processing_status', 'failed');
+    } else {
+      updateQuery = updateQuery.eq('processing_status', 'received');
+      updateQuery = existing.processed_at
+        ? updateQuery.lt('processed_at', existing.processed_at)
+        : updateQuery.is('processed_at', null);
+    }
+
+    const { data: claimed, error: updateError } = await updateQuery.select('id').maybeSingle();
     if (updateError) throw new Error('Failed to claim Stripe event retry');
+    if (!claimed) return { action: 'busy' };
     return { action: 'process' };
   }
 
-  return { action: 'duplicate' };
+  return { action: 'busy' };
 };
 
 const updateRecordedStripeEvent = async (
@@ -143,6 +154,12 @@ const subscriptionIdFromInvoice = (invoice: Stripe.Invoice): string | null => {
 
 const subscriptionIdFromCheckoutSession = (session: Stripe.Checkout.Session): string | null => {
   const subscription = session.subscription;
+  if (typeof subscription === 'string') return subscription;
+  return subscription?.id ?? null;
+};
+
+const subscriptionIdFromSchedule = (schedule: Stripe.SubscriptionSchedule): string | null => {
+  const subscription = schedule.subscription;
   if (typeof subscription === 'string') return subscription;
   return subscription?.id ?? null;
 };
@@ -209,6 +226,13 @@ export const handler = async (event: NetlifyEvent) => {
         body: JSON.stringify({ received: true, duplicate: true }),
       };
     }
+    if (record.action === 'busy') {
+      return {
+        statusCode: 503,
+        headers,
+        body: JSON.stringify({ error: 'Stripe event is already being processed' }),
+      };
+    }
 
     const stripe = getStripeClient();
     let result: Awaited<ReturnType<typeof mirrorStripeSubscription>> | null = null;
@@ -245,6 +269,14 @@ export const handler = async (event: NetlifyEvent) => {
       case 'invoice.payment_failed': {
         const invoice = stripeEvent.data.object as Stripe.Invoice;
         result = await mirrorSubscriptionById(stripe, subscriptionIdFromInvoice(invoice));
+        break;
+      }
+      case 'subscription_schedule.updated':
+      case 'subscription_schedule.released':
+      case 'subscription_schedule.canceled':
+      case 'subscription_schedule.completed': {
+        const schedule = stripeEvent.data.object as Stripe.SubscriptionSchedule;
+        result = await mirrorSubscriptionById(stripe, subscriptionIdFromSchedule(schedule));
         break;
       }
       default:
