@@ -41,6 +41,7 @@ import {
 } from '@/utils/lemonBillingClient';
 
 import {
+  cancelPendingStripePlanChange,
   cancelStripeSubscriptionRequest,
   changeStripePlan,
   createStripeCheckoutSession,
@@ -64,6 +65,8 @@ import {
 import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
 
 import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
+
+import { isIOSWebView } from '@/utils/iosbridge';
 
 /**
 
@@ -209,10 +212,11 @@ const AccountPage: React.FC = () => {
       setBillingActionLoading(purpose);
 
       try {
-        const url =
-          billingPayload?.provider === 'stripe'
-            ? await fetchStripeBillingLink(purpose)
-            : await fetchLemonBillingLink(purpose);
+        const url = await (async (): Promise<string | null> => {
+          if (billingPayload?.provider === 'stripe') return fetchStripeBillingLink(purpose);
+          if (billingPayload?.provider === 'lemon') return fetchLemonBillingLink(purpose);
+          return null;
+        })();
 
         if (url) {
           window.open(url, '_blank');
@@ -239,7 +243,9 @@ const AccountPage: React.FC = () => {
       const result =
         billingPayload?.provider === 'stripe'
           ? await changeStripePlan(planChangeTarget)
-          : await changeLemonPlan(planChangeTarget);
+          : billingPayload?.provider === 'lemon'
+            ? await changeLemonPlan(planChangeTarget)
+            : { ok: false, error: 'Unsupported billing provider' };
 
       if (result.ok) {
         pushToast(
@@ -271,7 +277,12 @@ const AccountPage: React.FC = () => {
     setBillingActionLoading('cancel_pending');
 
     try {
-      const result = await cancelPendingLemonPlanChange();
+      const result =
+        billingPayload?.provider === 'stripe'
+          ? await cancelPendingStripePlanChange()
+          : billingPayload?.provider === 'lemon'
+            ? await cancelPendingLemonPlanChange()
+            : { ok: false, error: 'Unsupported billing provider' };
 
       if (result.ok) {
         pushToast(
@@ -304,7 +315,9 @@ const AccountPage: React.FC = () => {
       const result =
         billingPayload?.provider === 'stripe'
           ? await resumeStripeSubscription()
-          : await resumeLemonSubscription();
+          : billingPayload?.provider === 'lemon'
+            ? await resumeLemonSubscription()
+            : { ok: false, error: 'Unsupported billing provider' };
 
       if (result.ok) {
         const optimistic = applyOptimisticBillingAfterResume(
@@ -338,7 +351,9 @@ const AccountPage: React.FC = () => {
       const result =
         billingPayload?.provider === 'stripe'
           ? await cancelStripeSubscriptionRequest()
-          : await cancelLemonSubscriptionRequest();
+          : billingPayload?.provider === 'lemon'
+            ? await cancelLemonSubscriptionRequest()
+            : { ok: false, error: 'Unsupported billing provider' };
 
       if (result.ok) {
         pushToast(
@@ -362,7 +377,7 @@ const AccountPage: React.FC = () => {
     } finally {
       setBillingActionLoading(null);
     }
-  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+  }, [billingPayload?.provider, isEnglishCopy, pushToast, refreshBillingStatus]);
 
   const handleStartCoachingCheckout = useCallback(async () => {
     setBillingActionLoading('coaching_checkout');
@@ -499,6 +514,14 @@ const AccountPage: React.FC = () => {
 
   const showChangeToMonthly = canChangePlan && billingPayload?.plan_code === 'core_yearly';
 
+  const coachingCheckoutEnabled = import.meta.env.VITE_ENABLE_STRIPE_COACHING_CHECKOUT === 'true';
+
+  const showCoachingCheckoutButton =
+    coachingCheckoutEnabled &&
+    !isIOSWebView() &&
+    billingPayload?.billing_currency === 'JPY' &&
+    billingPayload?.can_start_coaching === true;
+
   /** フリー・期限切れでは次回更新日・請求額を出さない（DBに period 残存していても） */
 
   const showBillingSchedule =
@@ -506,7 +529,10 @@ const AccountPage: React.FC = () => {
 
   /** deleteAccount と同様: profiles.rank が free かつ課金上もフリー相当のときのみ退会可 */
 
-  const canWithdrawAccount = (profile?.rank ?? 'free') === 'free' && !isPremiumMember;
+  const hasActiveCoachingSubscription = billingPayload?.coaching_subscription !== null;
+
+  const canWithdrawAccount =
+    (profile?.rank ?? 'free') === 'free' && !isPremiumMember && !hasActiveCoachingSubscription;
 
   // アカウント画面を開いたとき・Checkout 戻り時に最新状態を取得（即時反映）
 
@@ -1390,31 +1416,30 @@ const AccountPage: React.FC = () => {
                               : '月額9,800円（税込）。Premiumとは別契約・別請求です。'}
                           </p>
 
-                          <button
-                            type="button"
-
-                            className="btn btn-sm btn-primary w-full"
-
-                            disabled={
-                              billingActionLoading !== null || !billingPayload.can_start_coaching
-                            }
-
-                            onClick={() => void handleStartCoachingCheckout()}
-                          >
-                            {billingActionLoading === 'coaching_checkout'
-                              ? isEnglishCopy
-                                ? 'Opening…'
-                                : '開いています…'
-                              : isEnglishCopy
-                                ? 'Apply for coaching'
-                                : '個別コーチングを申し込む'}
-                          </button>
-
-                          {!billingPayload.can_start_coaching && (
+                          {showCoachingCheckoutButton ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void handleStartCoachingCheckout()}
+                            >
+                              {billingActionLoading === 'coaching_checkout'
+                                ? isEnglishCopy
+                                  ? 'Opening…'
+                                  : '開いています…'
+                                : isEnglishCopy
+                                  ? 'Apply for coaching'
+                                  : '個別コーチングを申し込む'}
+                            </button>
+                          ) : (
                             <p className="text-xs text-amber-300">
-                              {isEnglishCopy
-                                ? 'Coaching requires an active paid Premium subscription without a scheduled cancellation.'
-                                : '個別コーチングは、解約予定のない有料Premium契約が必要です。'}
+                              {coachingCheckoutEnabled
+                                ? isEnglishCopy
+                                  ? 'Coaching applications are available only for eligible JP Stripe billing outside iOS WebView.'
+                                  : '個別コーチングの申込は、対象の国内Stripe課金かつiOS WebView外でのみ利用できます。'
+                                : isEnglishCopy
+                                  ? 'Coaching applications are being prepared.'
+                                  : '個別コーチングの申込受付は準備中です。'}
                             </p>
                           )}
                         </>
@@ -1626,13 +1651,11 @@ const AccountPage: React.FC = () => {
 
                           window.location.href = '/withdrawal-complete';
                         } else {
-                          const err = await response
-                            .json()
-                            .catch(() => ({
-                              error: isEnglishCopy
-                                ? 'Failed to delete account'
-                                : '退会に失敗しました',
-                            }));
+                          const err = await response.json().catch(() => ({
+                            error: isEnglishCopy
+                              ? 'Failed to delete account'
+                              : '退会に失敗しました',
+                          }));
 
                           const errorMessage = err.details
                             ? `${err.error}: ${err.details}`
@@ -1718,6 +1741,8 @@ const AccountPage: React.FC = () => {
         isEnglishCopy={isEnglishCopy}
 
         billingCurrency={billingCurrency}
+
+        provider={billingPayload?.provider ?? null}
 
         loading={
           billingActionLoading === 'change_monthly' || billingActionLoading === 'change_yearly'

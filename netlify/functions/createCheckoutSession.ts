@@ -20,8 +20,17 @@ import {
 
 type CheckoutRequestBody = {
   product?: unknown;
-
   plan?: unknown;
+};
+
+const parseCheckoutBody = (rawBody: string | null): CheckoutRequestBody | null => {
+  if (!rawBody) return {};
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? (parsed as CheckoutRequestBody) : null;
+  } catch {
+    return null;
+  }
 };
 
 const isStripeProductKind = (value: unknown): value is StripeProductKind =>
@@ -63,11 +72,35 @@ export const handler: Handler = async (event, _context) => {
       };
     }
 
-    const body = JSON.parse(event.body ?? '{}') as CheckoutRequestBody;
+    const body = parseCheckoutBody(event.body);
+    if (!body) {
+      return {
+        statusCode: 400,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Invalid JSON body' }),
+      };
+    }
 
-    const productKind = isStripeProductKind(body.product) ? body.product : 'premium';
+    if (body.product !== undefined && !isStripeProductKind(body.product)) {
+      return {
+        statusCode: 400,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Invalid product' }),
+      };
+    }
 
-    const planTarget = isStripePlanTarget(body.plan) ? body.plan : 'monthly';
+    if (body.plan !== undefined && !isStripePlanTarget(body.plan)) {
+      return {
+        statusCode: 400,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Invalid plan' }),
+      };
+    }
+
+    const productKind: StripeProductKind = isStripeProductKind(body.product)
+      ? body.product
+      : 'premium';
+    const planTarget: StripePlanTarget = isStripePlanTarget(body.plan) ? body.plan : 'monthly';
 
     if (productKind === 'coaching' && planTarget === 'yearly') {
       return {
@@ -99,7 +132,7 @@ export const handler: Handler = async (event, _context) => {
 
       .from('profiles')
 
-      .select('stripe_customer_id, email, country, lemon_trial_used, stripe_trial_start')
+      .select('stripe_customer_id, email, country, rank, lemon_trial_used, stripe_trial_start')
 
       .eq('id', userId)
 
@@ -159,6 +192,14 @@ export const handler: Handler = async (event, _context) => {
       };
     }
 
+    if (productKind === 'premium' && profile.rank && profile.rank !== 'free') {
+      return {
+        statusCode: 409,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Premium subscription is already active' }),
+      };
+    }
+
     if (productKind === 'coaching') {
       const eligible = await userHasPaidPremiumForCoaching(supabase, userId);
 
@@ -189,7 +230,7 @@ export const handler: Handler = async (event, _context) => {
 
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: profile.email,
+        email: profile.email ?? undefined,
 
         metadata: {
           supabase_user_id: userId,
@@ -198,13 +239,21 @@ export const handler: Handler = async (event, _context) => {
 
       customerId = customer.id;
 
-      await supabase
+      const { error: customerUpdateError } = await supabase
 
         .from('profiles')
 
         .update({ stripe_customer_id: customerId })
 
         .eq('id', userId);
+
+      if (customerUpdateError) {
+        return {
+          statusCode: 500,
+          headers: billingCorsHeaders,
+          body: JSON.stringify({ error: 'Failed to save Stripe customer' }),
+        };
+      }
     }
 
     const lookupKey = stripeLookupKeyForPlan(productKind, planTarget);
@@ -309,7 +358,7 @@ export const handler: Handler = async (event, _context) => {
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
 
-    await supabase
+    const { error: checkoutIntentUpdateError } = await supabase
 
       .from('checkout_intents')
 
@@ -320,6 +369,14 @@ export const handler: Handler = async (event, _context) => {
       })
 
       .eq('id', checkoutIntent.id);
+
+    if (checkoutIntentUpdateError) {
+      return {
+        statusCode: 500,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Failed to update checkout intent' }),
+      };
+    }
 
     return {
       statusCode: 200,
@@ -332,9 +389,7 @@ export const handler: Handler = async (event, _context) => {
         url: session.url,
       }),
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
+  } catch {
     return {
       statusCode: 500,
 
@@ -342,8 +397,6 @@ export const handler: Handler = async (event, _context) => {
 
       body: JSON.stringify({
         error: 'Internal server error',
-
-        details: message,
       }),
     };
   }

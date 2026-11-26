@@ -1,29 +1,24 @@
 import type { Handler } from '@netlify/functions';
-
 import {
   authenticateRequest,
   billingCorsHeaders,
   getStripeClient,
   getUserStripeSubscription,
-  isActiveEntitlementState,
   mirrorStripeSubscription,
   resolveStripePriceByLookupKey,
   retrieveExpandedStripeSubscription,
   stripeLookupKeyForPlan,
+  stripePlanCodeForLookupKey,
   stripePlanTargetForPlanCode,
   type StripePlanTarget,
 } from './lib/stripeBilling';
 
-type ChangePlanBody = {
-  target?: unknown;
-};
+type ChangePlanBody = { target?: unknown };
 
 const parseTarget = (body: string | null): StripePlanTarget | null => {
   if (!body) return null;
-
   try {
     const parsed = JSON.parse(body) as ChangePlanBody;
-
     return parsed.target === 'monthly' || parsed.target === 'yearly' ? parsed.target : null;
   } catch {
     return null;
@@ -31,93 +26,91 @@ const parseTarget = (body: string | null): StripePlanTarget | null => {
 };
 
 export const handler: Handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: billingCorsHeaders };
-  }
-
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: billingCorsHeaders };
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-
       headers: billingCorsHeaders,
-
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
   try {
     const target = parseTarget(event.body);
-
     if (!target) {
       return {
         statusCode: 400,
-
         headers: billingCorsHeaders,
-
         body: JSON.stringify({ error: 'Invalid target. Use monthly or yearly.' }),
       };
     }
 
     const authHeader = event.headers.authorization || event.headers.Authorization;
-
     const authResult = await authenticateRequest(authHeader);
-
     if ('error' in authResult) {
       return {
         statusCode: authResult.statusCode,
-
         headers: billingCorsHeaders,
-
         body: JSON.stringify({ error: authResult.error }),
       };
     }
 
     const { supabase, userId } = authResult;
-
     const row = await getUserStripeSubscription(supabase, userId);
-
     if (!row?.provider_subscription_id) {
       return {
         statusCode: 404,
-
         headers: billingCorsHeaders,
-
         body: JSON.stringify({ error: 'Stripe subscription not found' }),
       };
     }
-
-    if (!isActiveEntitlementState(row.entitlement_state) || row.pending_cancel_status != null) {
+    if (
+      row.entitlement_state !== 'active' ||
+      row.pending_cancel_status != null ||
+      row.pending_status != null
+    ) {
       return {
         statusCode: 409,
-
         headers: billingCorsHeaders,
-
         body: JSON.stringify({ error: 'Plan change is not available in the current state' }),
       };
     }
-
     if (stripePlanTargetForPlanCode(row.plan_code) === target) {
       return {
         statusCode: 409,
-
         headers: billingCorsHeaders,
-
         body: JSON.stringify({ error: 'Already on the requested plan' }),
       };
     }
 
     const stripe = getStripeClient();
-
     const current = await retrieveExpandedStripeSubscription(stripe, row.provider_subscription_id);
-
-    const subscriptionItemId = current.items.data[0]?.id ?? null;
-
-    if (!subscriptionItemId) {
+    if (
+      (current.status !== 'active' && current.status !== 'trialing') ||
+      current.cancel_at_period_end
+    ) {
       return {
         statusCode: 409,
-
         headers: billingCorsHeaders,
+        body: JSON.stringify({
+          error: 'Plan change is not available for this Stripe subscription',
+        }),
+      };
+    }
+    if (current.schedule) {
+      return {
+        statusCode: 409,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Plan change already scheduled', scheduled: true }),
+      };
+    }
 
+    const currentItem = current.items.data[0] ?? null;
+    const currentPriceId = currentItem?.price.id ?? null;
+    if (!currentItem || !currentPriceId) {
+      return {
+        statusCode: 409,
+        headers: billingCorsHeaders,
         body: JSON.stringify({ error: 'Subscription item not found' }),
       };
     }
@@ -126,59 +119,55 @@ export const handler: Handler = async (event) => {
       stripe,
       stripeLookupKeyForPlan('premium', target),
     );
+    const schedule = await stripe.subscriptionSchedules.create({ from_subscription: current.id });
+    const phaseStart = schedule.current_phase?.start_date ?? current.current_period_start;
+    const quantity = currentItem.quantity ?? 1;
 
-    const updated = await stripe.subscriptions.update(current.id, {
-      cancel_at_period_end: false,
-
-      proration_behavior: 'none',
-
-      items: [{ id: subscriptionItemId, price: price.id }],
-
-      expand: ['items.data.price.product'],
+    await stripe.subscriptionSchedules.update(schedule.id, {
+      end_behavior: 'release',
+      phases: [
+        {
+          start_date: phaseStart,
+          end_date: current.current_period_end,
+          items: [{ price: currentPriceId, quantity }],
+          proration_behavior: 'none',
+        },
+        {
+          start_date: current.current_period_end,
+          items: [{ price: price.id, quantity }],
+          proration_behavior: 'none',
+        },
+      ],
     });
 
-    await mirrorStripeSubscription(supabase, updated);
-
+    const refreshed = await retrieveExpandedStripeSubscription(stripe, current.id);
+    await mirrorStripeSubscription(supabase, refreshed);
     await supabase.from('subscription_events').insert({
       user_id: userId,
-
       provider: 'stripe',
-
-      event_type: 'plan_changed',
-
+      event_type: 'pending_plan_scheduled',
       provider_event_id: null,
-
       payload: {
-        provider_subscription_id: updated.id,
-
-        target,
-
-        price_lookup_key: price.lookup_key,
+        provider_subscription_id: current.id,
+        pending_plan_code: stripePlanCodeForLookupKey(price.lookup_key ?? null),
+        pending_price_lookup_key: price.lookup_key,
+        pending_plan_effective_at: new Date(current.current_period_end * 1000).toISOString(),
       },
-
       processing_status: 'processed',
-
       processed_at: new Date().toISOString(),
-
-      livemode: updated.livemode,
+      livemode: refreshed.livemode,
     });
 
     return {
       statusCode: 200,
-
       headers: billingCorsHeaders,
-
-      body: JSON.stringify({ ok: true }),
+      body: JSON.stringify({ ok: true, scheduled: true }),
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
+  } catch {
     return {
       statusCode: 500,
-
       headers: billingCorsHeaders,
-
-      body: JSON.stringify({ error: 'Internal server error', details: message }),
+      body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
 };

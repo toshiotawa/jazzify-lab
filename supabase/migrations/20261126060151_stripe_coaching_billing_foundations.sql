@@ -116,7 +116,7 @@ create table if not exists public.checkout_intents (
 
   user_id uuid not null references auth.users(id) on delete cascade,
 
-  provider text not null check (provider in ('stripe', 'gumroad')),
+  provider text not null check (provider in ('stripe')),
 
   product_kind text not null check (product_kind in ('premium', 'coaching')),
 
@@ -172,7 +172,7 @@ create table if not exists public.coaching_subscriptions (
 
   user_id uuid not null references auth.users(id) on delete cascade,
 
-  provider text not null check (provider in ('stripe', 'gumroad')),
+  provider text not null check (provider in ('stripe')),
 
   provider_customer_id text,
 

@@ -299,7 +299,7 @@ export function applyOptimisticBillingAfterResume(
     can_start_coaching: current.can_start_coaching,
   };
 
-  if (clearedScheduledCancel) {
+  if (clearedScheduledCancel && current.entitlement_state !== 'cancelled_but_active_until_end') {
     return normalizeBillingStatusPayload({
       ...shared,
 

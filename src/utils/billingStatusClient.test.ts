@@ -271,4 +271,32 @@ describe('normalizeBillingStatusPayload', () => {
 
     expect(optimistic?.next_billing_amount_jpy).toBe(34800);
   });
+
+  it('optimistically restores active billing after Stripe scheduled cancel is cleared', () => {
+    const cancelledGrace = normalizeBillingStatusPayload({
+      provider: 'stripe',
+
+      status: 'canceled',
+
+      entitlement_state: 'cancelled_but_active_until_end',
+
+      plan_code: 'core_monthly',
+
+      trial_used: false,
+
+      pending_cancel_effective_at: '2027-06-12T05:30:46.000000Z',
+
+      current_period_ends_at: '2027-06-12T05:30:46.000000Z',
+    });
+
+    const optimistic = applyOptimisticBillingAfterResume(cancelledGrace, true);
+
+    expect(optimistic?.status).toBe('active');
+
+    expect(optimistic?.entitlement_state).toBe('active');
+
+    expect(optimistic?.can_resume).toBe(false);
+
+    expect(optimistic?.can_change_plan).toBe(true);
+  });
 });

@@ -22,6 +22,8 @@ import { resolveAffiliateCheckoutUrl } from '@/utils/lemonAffiliateCheckout';
 
 import { createStripeCheckoutSession } from '@/utils/stripeBillingClient';
 
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+
 interface WebPaywallModalProps {
   open: boolean;
 
@@ -195,7 +197,12 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     isEnglishCopy,
   });
 
-  const trialUsed = profile?.lemon_trial_used === true;
+  const { billingPayload } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+
+  const trialUsed =
+    profile?.lemon_trial_used === true ||
+    profile?.stripe_trial_start != null ||
+    billingPayload?.trial_used === true;
 
   const copy = resolveWebPaywallCopy(source, isEnglishCopy, trialUsed, billingCurrency);
 
@@ -204,6 +211,20 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     : billingCurrency === 'USD'
       ? PRICE_COPY.enUsd
       : PRICE_COPY.enJpy;
+
+  const stripeSelectedAmount =
+    selectedStripePlan === 'yearly' ? PREMIUM_PRICING_JPY.yearly : PREMIUM_PRICING_JPY.monthly;
+
+  const stripeFootnote =
+    billingCurrency !== 'JPY'
+      ? null
+      : trialUsed
+        ? isEnglishCopy
+          ? `You will be charged ¥${stripeSelectedAmount.toLocaleString('en-US')} today. Cancel anytime.`
+          : `本日${stripeSelectedAmount.toLocaleString('ja-JP')}円（税込）が請求されます。いつでも解約できます。`
+        : isEnglishCopy
+          ? `7-day free trial, then ¥${stripeSelectedAmount.toLocaleString('en-US')} ${selectedStripePlan === 'yearly' ? '/ year' : '/ month'}. Cancel anytime.`
+          : `7日間無料。その後${selectedStripePlan === 'yearly' ? '年額' : '月額'}${stripeSelectedAmount.toLocaleString('ja-JP')}円（税込）。いつでも解約できます。`;
 
   const checkoutBusy = loading || redirecting;
 
@@ -522,7 +543,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
           </p>
         )}
 
-        {copy.trialUsedNotice ? (
+        {billingCurrency !== 'JPY' && copy.trialUsedNotice ? (
           <p className="text-xs text-amber-200/90 text-center mb-3 leading-relaxed">
             {copy.trialUsedNotice}
           </p>
@@ -547,7 +568,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
         </button>
 
         <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">
-          {copy.ctaFootnote ?? priceCopy.footnote}
+          {stripeFootnote ?? copy.ctaFootnote ?? priceCopy.footnote}
         </p>
 
         <div className="text-center mt-3 space-y-2">
