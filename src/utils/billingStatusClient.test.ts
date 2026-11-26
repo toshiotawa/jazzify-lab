@@ -164,6 +164,22 @@ describe('normalizeBillingStatusPayload', () => {
     expect(payload.next_billing_amount_jpy).toBeNull();
   });
 
+  it('does not derive resume for expired rows with stale pending cancellation', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'stripe',
+
+      status: 'expired',
+
+      entitlement_state: 'expired',
+
+      plan_code: 'core_monthly',
+
+      pending_cancel_effective_at: '2027-06-12T05:30:46.000000Z',
+    });
+
+    expect(payload.can_resume).toBe(false);
+  });
+
   it('preserves explicit false from API', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',

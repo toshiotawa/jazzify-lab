@@ -62,7 +62,7 @@ export function deriveBillingCapabilities(
   return {
     can_change_plan: isActiveEntitlement && !hasPendingPlanChange && !pendingCancelScheduled,
 
-    can_resume: pendingCancelScheduled || isCancelledGrace,
+    can_resume: (pendingCancelScheduled && entitlementState !== 'expired') || isCancelledGrace,
 
     can_manage_payment: isActiveEntitlement || isCancelledGrace || isPastDue,
 
@@ -121,7 +121,7 @@ export function assertSubscriptionActionAllowed(
     }
 
     case 'resume': {
-      if (pendingCancelScheduled) {
+      if (pendingCancelScheduled && dbEntitlementState !== 'expired') {
         return { allowed: true };
       }
 
