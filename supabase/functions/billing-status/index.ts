@@ -34,6 +34,12 @@ type CoachingBillingStatus = {
   next_billing_amount_jpy: number | null;
 
   billing_currency: 'JPY' | 'USD';
+
+  can_cancel: boolean;
+
+  can_resume: boolean;
+
+  can_manage_payment: boolean;
 } | null;
 
 function isPendingCancelScheduled(status: string | null | undefined): boolean {
@@ -119,6 +125,20 @@ function isPaidPremiumForCoaching(
   return status === 'active' && entitlementState === 'active' && !pendingCancelScheduled;
 }
 
+function isJapanStripeEligible(profile: {
+  country?: string | null;
+  billing_currency?: string | null;
+  preferred_locale?: string | null;
+}): boolean {
+  if (profile.billing_currency === 'USD') return false;
+  if (profile.billing_currency === 'JPY') return true;
+  const country = typeof profile.country === 'string' ? profile.country.trim().toUpperCase() : null;
+  if (country) {
+    return country === 'JP' || country === 'JPN' || country === 'JAPAN';
+  }
+  return profile.preferred_locale !== 'en';
+}
+
 function buildCoachingBillingStatus(row: Record<string, unknown> | null): CoachingBillingStatus {
   if (!row) return null;
 
@@ -132,10 +152,30 @@ function buildCoachingBillingStatus(row: Record<string, unknown> | null): Coachi
 
   const currency = row.billing_currency === 'USD' ? 'USD' : 'JPY';
 
-  return {
-    provider: typeof row.provider === 'string' ? row.provider : 'none',
+  const provider = typeof row.provider === 'string' ? row.provider : 'none';
 
-    status: typeof row.status === 'string' ? row.status : 'expired',
+  const status = typeof row.status === 'string' ? row.status : 'expired';
+
+  const pendingCancelStatus =
+    typeof row.pending_cancel_status === 'string' ? row.pending_cancel_status : null;
+
+  const pendingCancelScheduled = isPendingCancelScheduled(pendingCancelStatus);
+
+  const caps = deriveBillingCapabilities(
+    provider,
+    entitlementState,
+    status,
+    null,
+    pendingCancelScheduled,
+  );
+
+  const canCancel =
+    provider === 'stripe' && entitlementState === 'active' && !pendingCancelScheduled;
+
+  return {
+    provider,
+
+    status,
 
     entitlement_state: entitlementState,
 
@@ -152,6 +192,12 @@ function buildCoachingBillingStatus(row: Record<string, unknown> | null): Coachi
     next_billing_amount_jpy: hideNextBilling || currency !== 'JPY' ? null : 9800,
 
     billing_currency: currency,
+
+    can_cancel: canCancel,
+
+    can_resume: caps.can_resume,
+
+    can_manage_payment: caps.can_manage_payment,
   };
 }
 
@@ -219,6 +265,8 @@ function buildBillingResponse(
   billingCurrency: 'JPY' | 'USD' = 'JPY',
 
   coachingSubscription: CoachingBillingStatus = null,
+
+  japanStripeEligible: boolean = false,
 ) {
   const caps = deriveBillingCapabilities(
     provider,
@@ -283,7 +331,7 @@ function buildBillingResponse(
     coaching_subscription: coachingSubscription,
 
     can_start_coaching:
-      billingCurrency === 'JPY' &&
+      japanStripeEligible &&
       coachingSubscription === null &&
       isPaidPremiumForCoaching(status, entitlementState, pendingCancelScheduled),
   };
@@ -351,7 +399,7 @@ Deno.serve(async (req: Request) => {
       .from('coaching_subscriptions')
 
       .select(
-        'provider, status, entitlement_state, current_period_ends_at, pending_cancel_effective_at, billing_currency',
+        'provider, status, entitlement_state, current_period_ends_at, pending_cancel_effective_at, pending_cancel_status, billing_currency',
       )
 
       .eq('user_id', user.id)
@@ -378,7 +426,7 @@ Deno.serve(async (req: Request) => {
 
       .from('profiles')
 
-      .select('billing_currency, preferred_locale')
+      .select('billing_currency, preferred_locale, country')
 
       .eq('id', user.id)
 
@@ -392,6 +440,12 @@ Deno.serve(async (req: Request) => {
           : profileRow?.preferred_locale === 'en'
             ? 'USD'
             : 'JPY';
+
+    const japanStripeEligible = isJapanStripeEligible({
+      country: profileRow?.country ?? null,
+      billing_currency: profileRow?.billing_currency ?? null,
+      preferred_locale: profileRow?.preferred_locale ?? null,
+    });
 
     if (!subscription) {
       const { data: profile } = await supabase
@@ -437,6 +491,8 @@ Deno.serve(async (req: Request) => {
               billingCurrency,
 
               coachingSubscription,
+
+              japanStripeEligible,
             ),
           ),
           {
@@ -477,6 +533,8 @@ Deno.serve(async (req: Request) => {
             billingCurrency,
 
             coachingSubscription,
+
+            japanStripeEligible,
           ),
         ),
         {
@@ -526,6 +584,8 @@ Deno.serve(async (req: Request) => {
           subscriptionBillingCurrency,
 
           coachingSubscription,
+
+          japanStripeEligible,
         ),
       ),
       {

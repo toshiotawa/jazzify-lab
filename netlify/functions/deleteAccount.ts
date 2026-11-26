@@ -128,6 +128,40 @@ export const handler: Handler = async (event, _context) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Freeプランのみ退会できます。まずCustomer Portalで解約してください。' }) };
     }
 
+    const activeEntitlements = [
+      'active',
+      'payment_issue_with_access',
+      'payment_issue_no_access',
+      'cancelled_but_active_until_end',
+    ];
+
+    const { data: premiumRow } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .in('entitlement_state', activeEntitlements)
+      .limit(1)
+      .maybeSingle();
+
+    const { data: coachingRow } = await supabase
+      .from('coaching_subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .in('entitlement_state', activeEntitlements)
+      .limit(1)
+      .maybeSingle();
+
+    if (premiumRow || coachingRow) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error:
+            '有効なサブスクリプションがあるため退会できません。先にPremiumまたはコーチングの解約を完了してください。',
+        }),
+      };
+    }
+
     // 退会完了メール送信用にオリジナルのメールアドレスを保存
     const originalEmail = profile?.email || user.email;
 

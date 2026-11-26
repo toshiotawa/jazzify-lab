@@ -9,8 +9,8 @@ import { useGeoStore } from '@/stores/geoStore';
 import { PAYMENT_ISSUE_COPY, type PaymentIssueBannerVariant } from '@/utils/paymentIssueBanner';
 
 import {
-  bannerVariantFromPayload,
   fetchBillingStatusPayload,
+  resolvePaymentIssueFromBillingPayload,
   type BillingStatusPayload,
 } from '@/utils/billingStatusClient';
 
@@ -71,11 +71,13 @@ const PaymentIssueBanner: React.FC = () => {
 
       if (cancelled) return;
 
-      setVariant(bannerVariantFromPayload(payload));
+      const resolution = resolvePaymentIssueFromBillingPayload(payload);
 
-      setCanManagePayment(payload?.can_manage_payment === true);
+      setVariant(resolution?.variant ?? null);
 
-      setBillingProvider(payload?.provider ?? null);
+      setCanManagePayment(resolution?.canManagePayment === true);
+
+      setBillingProvider(resolution?.provider ?? null);
     };
 
     void run();

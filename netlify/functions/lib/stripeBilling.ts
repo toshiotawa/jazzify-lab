@@ -10,6 +10,20 @@ import {
 export { authenticateRequest, billingCorsHeaders, ensureEnv, getSupabaseServiceClient };
 
 export type StripeProductKind = 'premium' | 'coaching';
+
+export type StripeBillingProductParam = StripeProductKind | 'invalid';
+
+export const parseStripeBillingProduct = (body: string | null | undefined): StripeBillingProductParam => {
+  if (!body?.trim()) return 'premium';
+  try {
+    const parsed = JSON.parse(body) as { product?: unknown };
+    if (parsed.product === undefined) return 'premium';
+    if (parsed.product === 'premium' || parsed.product === 'coaching') return parsed.product;
+    return 'invalid';
+  } catch {
+    return 'premium';
+  }
+};
 export type StripePlanTarget = 'monthly' | 'yearly';
 
 export const STRIPE_PRICE_LOOKUP_KEYS = {
@@ -146,6 +160,56 @@ const normalizeInterval = (interval: string | null | undefined): 'month' | 'year
 
 export const isActiveEntitlementState = (entitlementState: string | null | undefined): boolean =>
   entitlementState != null && ACTIVE_ENTITLEMENT_STATES.has(entitlementState);
+
+export interface JapanStripeEligibilityInput {
+  country?: string | null;
+  billing_currency?: string | null;
+  preferred_locale?: string | null;
+}
+
+export const isJapanStripeEligible = (profile: JapanStripeEligibilityInput): boolean => {
+  if (profile.billing_currency === 'USD') return false;
+  if (profile.billing_currency === 'JPY') return true;
+  const country = profile.country?.trim().toUpperCase() ?? null;
+  if (country) {
+    return country === 'JP' || country === 'JPN' || country === 'JAPAN';
+  }
+  return profile.preferred_locale !== 'en';
+};
+
+export interface StripeCoachingSubscriptionRow {
+  provider: string;
+  provider_subscription_id: string | null;
+  entitlement_state: string;
+  status: string;
+  pending_cancel_status: string | null;
+  current_period_ends_at: string | null;
+}
+
+export const getUserStripeCoachingSubscription = async (
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<StripeCoachingSubscriptionRow | null> => {
+  const { data } = await supabase
+    .from('coaching_subscriptions')
+    .select(
+      'provider, provider_subscription_id, entitlement_state, status, pending_cancel_status, current_period_ends_at, created_at',
+    )
+    .eq('user_id', userId)
+    .eq('provider', 'stripe')
+    .order('created_at', { ascending: false });
+  if (!data?.length) return null;
+  const row = data.find((entry) => entry.entitlement_state !== 'expired') ?? data[0];
+  if (!row?.provider_subscription_id) return null;
+  return {
+    provider: row.provider,
+    provider_subscription_id: row.provider_subscription_id,
+    entitlement_state: row.entitlement_state,
+    status: row.status,
+    pending_cancel_status: row.pending_cancel_status ?? null,
+    current_period_ends_at: row.current_period_ends_at ?? null,
+  };
+};
 
 export const mapStripeSubscriptionStatus = (
   subscription: Pick<Stripe.Subscription, 'status' | 'cancel_at_period_end' | 'current_period_end'>,

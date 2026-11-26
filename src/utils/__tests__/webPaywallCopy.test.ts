@@ -81,4 +81,16 @@ describe('resolveWebPaywallCopy', () => {
       'Your free trial has already been used. You will be charged $199/year at purchase.',
     );
   });
+
+  it('uses monthly JPY pricing when selectedPlan is monthly', () => {
+    const copy = resolveWebPaywallCopy('dashboard', false, false, 'JPY', 'monthly');
+    expect(copy.ctaFootnote).toBe(
+      '本日のお支払いはありません。7日後から月額¥3,980。いつでもキャンセルできます。',
+    );
+
+    const used = resolveWebPaywallCopy('dashboard', false, true, 'JPY', 'monthly');
+    expect(used.trialUsedNotice).toBe(
+      '無料トライアルは利用済みです。購入時に月額¥3,980が請求されます。',
+    );
+  });
 });

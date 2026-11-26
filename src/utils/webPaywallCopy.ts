@@ -11,7 +11,23 @@ export interface WebPaywallResolvedCopy {
   ctaFootnote?: string;
 }
 
-const yearlyPricePhrase = (currency: BillingCurrency, isEnglishCopy: boolean): string => {
+export type WebPaywallSelectedPlan = 'monthly' | 'yearly';
+
+const planPricePhrase = (
+  currency: BillingCurrency,
+  isEnglishCopy: boolean,
+  selectedPlan: WebPaywallSelectedPlan,
+): string => {
+  if (selectedPlan === 'monthly') {
+    if (currency === 'USD') {
+      return isEnglishCopy
+        ? `$${PREMIUM_PRICING_USD.monthly}/month`
+        : `$${PREMIUM_PRICING_USD.monthly}/月`;
+    }
+    return isEnglishCopy
+      ? `¥${PREMIUM_PRICING_JPY.monthly.toLocaleString('en-US')}/month`
+      : `月額¥${PREMIUM_PRICING_JPY.monthly.toLocaleString('ja-JP')}`;
+  }
   if (currency === 'USD') {
     return isEnglishCopy ? `$${PREMIUM_PRICING_USD.yearly}/year` : `$${PREMIUM_PRICING_USD.yearly}/年`;
   }
@@ -20,20 +36,28 @@ const yearlyPricePhrase = (currency: BillingCurrency, isEnglishCopy: boolean): s
     : `年額¥${PREMIUM_PRICING_JPY.yearly.toLocaleString('ja-JP')}`;
 };
 
-const trialUsedNoticeFor = (currency: BillingCurrency, isEnglishCopy: boolean): string => {
-  const yearly = yearlyPricePhrase(currency, isEnglishCopy);
+const trialUsedNoticeFor = (
+  currency: BillingCurrency,
+  isEnglishCopy: boolean,
+  selectedPlan: WebPaywallSelectedPlan,
+): string => {
+  const price = planPricePhrase(currency, isEnglishCopy, selectedPlan);
   if (isEnglishCopy) {
-    return `Your free trial has already been used. You will be charged ${yearly} at purchase.`;
+    return `Your free trial has already been used. You will be charged ${price} at purchase.`;
   }
-  return `無料トライアルは利用済みです。購入時に${yearly}が請求されます。`;
+  return `無料トライアルは利用済みです。購入時に${price}が請求されます。`;
 };
 
-const trialCtaFootnoteFor = (currency: BillingCurrency, isEnglishCopy: boolean): string => {
-  const yearly = yearlyPricePhrase(currency, isEnglishCopy);
+const trialCtaFootnoteFor = (
+  currency: BillingCurrency,
+  isEnglishCopy: boolean,
+  selectedPlan: WebPaywallSelectedPlan,
+): string => {
+  const price = planPricePhrase(currency, isEnglishCopy, selectedPlan);
   if (isEnglishCopy) {
-    return `No charge today. ${yearly} after 7 days. Cancel anytime.`;
+    return `No charge today. ${price} after 7 days. Cancel anytime.`;
   }
-  return `本日のお支払いはありません。7日後から${yearly}。いつでもキャンセルできます。`;
+  return `本日のお支払いはありません。7日後から${price}。いつでもキャンセルできます。`;
 };
 
 const COPY = {
@@ -129,11 +153,16 @@ export function resolveWebPaywallCopy(
   isEnglishCopy: boolean,
   trialUsed: boolean,
   billingCurrency: BillingCurrency = 'JPY',
+  selectedPlan: WebPaywallSelectedPlan = 'yearly',
 ): WebPaywallResolvedCopy {
   const base = isEnglishCopy ? COPY.en : COPY.ja;
   const chapterOriented = isChapterOrientedSource(source);
-  const trialUsedNotice = trialUsed ? trialUsedNoticeFor(billingCurrency, isEnglishCopy) : undefined;
-  const trialCtaFootnote = trialUsed ? undefined : trialCtaFootnoteFor(billingCurrency, isEnglishCopy);
+  const trialUsedNotice = trialUsed
+    ? trialUsedNoticeFor(billingCurrency, isEnglishCopy, selectedPlan)
+    : undefined;
+  const trialCtaFootnote = trialUsed
+    ? undefined
+    : trialCtaFootnoteFor(billingCurrency, isEnglishCopy, selectedPlan);
 
   if (source === 'soft_landing') {
     return {

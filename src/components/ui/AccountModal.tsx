@@ -33,21 +33,22 @@ import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import {
   changeLemonPlan,
   cancelPendingLemonPlanChange,
-  cancelLemonSubscriptionRequest,
   fetchLemonBillingLink,
   fetchLemonInvoices,
-  resumeLemonSubscription,
   type LemonInvoiceItem,
 } from '@/utils/lemonBillingClient';
 
 import {
   cancelPendingStripePlanChange,
-  cancelStripeSubscriptionRequest,
   changeStripePlan,
   createStripeCheckoutSession,
   fetchStripeBillingLink,
-  resumeStripeSubscription,
 } from '@/utils/stripeBillingClient';
+
+import {
+  cancelSubscriptionForProvider,
+  resumeSubscriptionForProvider,
+} from '@/utils/webBillingActions';
 
 import PlanChangeConfirmModal from '@/components/ui/PlanChangeConfirmModal';
 
@@ -165,6 +166,8 @@ const AccountPage: React.FC = () => {
   const [planChangeTarget, setPlanChangeTarget] = useState<'monthly' | 'yearly' | null>(null);
 
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const [showCoachingCancelConfirm, setShowCoachingCancelConfirm] = useState(false);
 
   const [invoicesExpanded, setInvoicesExpanded] = useState(false);
 
@@ -313,11 +316,9 @@ const AccountPage: React.FC = () => {
 
     try {
       const result =
-        billingPayload?.provider === 'stripe'
-          ? await resumeStripeSubscription()
-          : billingPayload?.provider === 'lemon'
-            ? await resumeLemonSubscription()
-            : { ok: false, error: 'Unsupported billing provider' };
+        billingPayload?.provider === 'stripe' || billingPayload?.provider === 'lemon'
+          ? await resumeSubscriptionForProvider(billingPayload.provider, 'premium')
+          : { ok: false, error: 'Unsupported billing provider' };
 
       if (result.ok) {
         const optimistic = applyOptimisticBillingAfterResume(
@@ -349,11 +350,9 @@ const AccountPage: React.FC = () => {
 
     try {
       const result =
-        billingPayload?.provider === 'stripe'
-          ? await cancelStripeSubscriptionRequest()
-          : billingPayload?.provider === 'lemon'
-            ? await cancelLemonSubscriptionRequest()
-            : { ok: false, error: 'Unsupported billing provider' };
+        billingPayload?.provider === 'stripe' || billingPayload?.provider === 'lemon'
+          ? await cancelSubscriptionForProvider(billingPayload.provider, 'premium')
+          : { ok: false, error: 'Unsupported billing provider' };
 
       if (result.ok) {
         pushToast(
@@ -378,6 +377,81 @@ const AccountPage: React.FC = () => {
       setBillingActionLoading(null);
     }
   }, [billingPayload?.provider, isEnglishCopy, pushToast, refreshBillingStatus]);
+
+  const handleResumeCoachingSubscription = useCallback(async () => {
+    const msg = isEnglishCopy
+      ? 'Resume your coaching subscription? Billing will continue as before.'
+      : 'コーチングの解約を取り消して契約を再開しますか？';
+
+    if (!confirm(msg)) return;
+
+    setBillingActionLoading('coaching_resume');
+
+    try {
+      const result = await resumeSubscriptionForProvider('stripe', 'coaching');
+
+      if (result.ok) {
+        pushToast(
+          isEnglishCopy ? 'Coaching subscription resumed' : 'コーチングの解約を取り消しました',
+          'success',
+        );
+
+        await refreshBillingStatus();
+      } else {
+        alert(
+          result.error ??
+            (isEnglishCopy
+              ? 'Failed to resume coaching subscription'
+              : 'コーチングの解約取り消しに失敗しました'),
+        );
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+
+  const handleConfirmCancelCoachingSubscription = useCallback(async () => {
+    setBillingActionLoading('coaching_cancel');
+
+    try {
+      const result = await cancelSubscriptionForProvider('stripe', 'coaching');
+
+      if (result.ok) {
+        pushToast(
+          isEnglishCopy
+            ? 'Coaching cancellation scheduled. You can use coaching until the period ends'
+            : 'コーチングの解約を予約しました。期間終了までご利用いただけます',
+          'success',
+        );
+
+        setShowCoachingCancelConfirm(false);
+
+        await refreshBillingStatus();
+      } else {
+        pushToast(
+          result.error ??
+            (isEnglishCopy ? 'Failed to cancel coaching subscription' : 'コーチングの解約に失敗しました'),
+          'error',
+        );
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+
+  const handleCoachingPaymentMethod = useCallback(async () => {
+    setBillingActionLoading('coaching_payment');
+
+    try {
+      const url = await fetchStripeBillingLink('payment_method');
+
+      if (url) {
+        window.open(url, '_blank');
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, []);
 
   const handleStartCoachingCheckout = useCallback(async () => {
     setBillingActionLoading('coaching_checkout');
@@ -1392,21 +1466,119 @@ const AccountPage: React.FC = () => {
 
                       {billingPayload.coaching_subscription ? (
                         <>
-                          <p className="text-xs text-gray-400">
-                            {isEnglishCopy
-                              ? 'Coaching add-on is active as a separate subscription.'
-                              : '個別コーチングはPremiumとは別契約として有効です。'}
-                          </p>
+                          {(() => {
+                            const coachingSub = billingPayload.coaching_subscription;
+                            const pendingCancel =
+                              coachingSub.pending_cancel_effective_at != null ||
+                              coachingSub.entitlement_state === 'cancelled_but_active_until_end';
+
+                            if (coachingSub.entitlement_state === 'payment_issue_no_access') {
+                              return (
+                                <p className="text-xs text-red-300">
+                                  {isEnglishCopy
+                                    ? 'Coaching billing failed. Update payment to restore access.'
+                                    : 'コーチングのお支払いに問題があります。支払い情報を更新してください。'}
+                                </p>
+                              );
+                            }
+
+                            if (coachingSub.entitlement_state === 'payment_issue_with_access') {
+                              return (
+                                <p className="text-xs text-amber-300">
+                                  {isEnglishCopy
+                                    ? 'There is a payment issue on coaching. Please update your payment method.'
+                                    : 'コーチングのお支払いに問題があります。支払い情報を更新してください。'}
+                                </p>
+                              );
+                            }
+
+                            if (pendingCancel) {
+                              return (
+                                <p className="text-xs text-gray-400">
+                                  {isEnglishCopy
+                                    ? 'Coaching cancellation is scheduled for the end of the current period.'
+                                    : 'コーチングは現在の請求期間の終了時に解約されます。'}
+                                </p>
+                              );
+                            }
+
+                            return (
+                              <p className="text-xs text-gray-400">
+                                {isEnglishCopy
+                                  ? 'Coaching add-on is active as a separate subscription.'
+                                  : '個別コーチングはPremiumとは別契約として有効です。'}
+                              </p>
+                            );
+                          })()}
 
                           {formatPeriodEnd(
-                            billingPayload.coaching_subscription.current_period_ends_at,
+                            billingPayload.coaching_subscription.pending_cancel_effective_at ??
+                              billingPayload.coaching_subscription.current_period_ends_at,
                           ) && (
                             <p className="text-xs text-gray-400">
-                              {isEnglishCopy
-                                ? `Next renewal: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`
-                                : `次回更新日: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`}
+                              {billingPayload.coaching_subscription.pending_cancel_effective_at !=
+                              null
+                                ? isEnglishCopy
+                                  ? `Coaching ends: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
+                                  : `コーチング終了日: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
+                                : isEnglishCopy
+                                  ? `Next renewal: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`
+                                  : `次回更新日: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`}
                             </p>
                           )}
+
+                          {billingPayload.coaching_subscription.can_resume && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void handleResumeCoachingSubscription()}
+                            >
+                              {billingActionLoading === 'coaching_resume'
+                                ? isEnglishCopy
+                                  ? 'Processing…'
+                                  : '処理中…'
+                                : isEnglishCopy
+                                  ? 'Resume coaching'
+                                  : 'コーチングの解約を取り消す'}
+                            </button>
+                          )}
+
+                          {billingPayload.coaching_subscription.can_cancel && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full text-red-300 border-red-700/50"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => setShowCoachingCancelConfirm(true)}
+                            >
+                              {billingActionLoading === 'coaching_cancel'
+                                ? isEnglishCopy
+                                  ? 'Processing…'
+                                  : '処理中…'
+                                : isEnglishCopy
+                                  ? 'Cancel coaching'
+                                  : 'コーチングを解約する'}
+                            </button>
+                          )}
+
+                          {billingPayload.coaching_subscription.can_manage_payment &&
+                            billingPayload.coaching_subscription.provider === 'stripe' &&
+                            !showStripeBillingPortal && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline w-full"
+                                disabled={billingActionLoading !== null}
+                                onClick={() => void handleCoachingPaymentMethod()}
+                              >
+                                {billingActionLoading === 'coaching_payment'
+                                  ? isEnglishCopy
+                                    ? 'Opening…'
+                                    : '開いています…'
+                                  : isEnglishCopy
+                                    ? 'Update coaching payment method'
+                                    : 'コーチングの支払い方法を変更する'}
+                              </button>
+                            )}
                         </>
                       ) : (
                         <>
@@ -1767,6 +1939,26 @@ const AccountPage: React.FC = () => {
         onClose={() => setShowCancelConfirm(false)}
 
         onConfirm={() => void handleConfirmCancelSubscription()}
+      />
+
+      <CancelSubscriptionConfirmModal
+        open={showCoachingCancelConfirm}
+
+        periodEndLabel={formatPeriodEnd(
+          billingPayload?.coaching_subscription?.pending_cancel_effective_at ??
+            billingPayload?.coaching_subscription?.current_period_ends_at ??
+            null,
+        )}
+
+        pendingPlanCode={null}
+
+        isEnglishCopy={isEnglishCopy}
+
+        loading={billingActionLoading === 'coaching_cancel'}
+
+        onClose={() => setShowCoachingCancelConfirm(false)}
+
+        onConfirm={() => void handleConfirmCancelCoachingSubscription()}
       />
     </div>
   );

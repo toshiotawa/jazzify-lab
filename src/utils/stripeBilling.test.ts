@@ -1,5 +1,6 @@
 import {
   getStripeClient,
+  isJapanStripeEligible,
   mapStripeSubscriptionStatus,
   resolveExpectedStripeLivemode,
 } from '../../netlify/functions/lib/stripeBilling';
@@ -53,5 +54,14 @@ describe('stripe billing helpers', () => {
 
     process.env.STRIPE_SECRET_KEY = 'sk_live_example';
     expect(() => getStripeClient()).toThrow(/livemode/);
+  });
+
+  it('resolves Japan Stripe eligibility from profile fields', () => {
+    expect(isJapanStripeEligible({ billing_currency: 'JPY' })).toBe(true);
+    expect(isJapanStripeEligible({ billing_currency: 'USD' })).toBe(false);
+    expect(isJapanStripeEligible({ country: 'JP', preferred_locale: 'en' })).toBe(true);
+    expect(isJapanStripeEligible({ country: 'US', preferred_locale: 'ja' })).toBe(false);
+    expect(isJapanStripeEligible({ preferred_locale: 'ja' })).toBe(true);
+    expect(isJapanStripeEligible({ preferred_locale: 'en' })).toBe(false);
   });
 });

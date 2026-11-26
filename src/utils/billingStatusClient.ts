@@ -64,6 +64,12 @@ export interface CoachingBillingStatus {
   next_billing_amount_jpy: number | null;
 
   billing_currency: BillingCurrency;
+
+  can_cancel: boolean;
+
+  can_resume: boolean;
+
+  can_manage_payment: boolean;
 }
 
 let cache: { payload: BillingStatusPayload; fetchedAt: number } | null = null;
@@ -230,6 +236,16 @@ function normalizeCoachingBillingStatus(value: unknown): CoachingBillingStatus |
     return null;
   }
 
+  const pendingCancelScheduled = record.pending_cancel_effective_at != null;
+
+  const derivedCoachingCaps = deriveBillingCapabilities(
+    record.provider,
+    record.entitlement_state,
+    record.status,
+    null,
+    pendingCancelScheduled,
+  );
+
   return {
     provider: record.provider,
 
@@ -249,6 +265,74 @@ function normalizeCoachingBillingStatus(value: unknown): CoachingBillingStatus |
       typeof record.next_billing_amount_jpy === 'number' ? record.next_billing_amount_jpy : null,
 
     billing_currency: record.billing_currency === 'USD' ? 'USD' : 'JPY',
+
+    can_cancel:
+      typeof record.can_cancel === 'boolean'
+        ? record.can_cancel
+        : record.provider === 'stripe' &&
+          record.entitlement_state === 'active' &&
+          !pendingCancelScheduled,
+
+    can_resume:
+      typeof record.can_resume === 'boolean' ? record.can_resume : derivedCoachingCaps.can_resume,
+
+    can_manage_payment:
+      typeof record.can_manage_payment === 'boolean'
+        ? record.can_manage_payment
+        : derivedCoachingCaps.can_manage_payment,
+  };
+}
+
+export type PaymentIssueBannerTarget = 'premium' | 'coaching';
+
+export interface PaymentIssueBannerResolution {
+  variant: PaymentIssueBannerVariant;
+
+  provider: string;
+
+  canManagePayment: boolean;
+
+  target: PaymentIssueBannerTarget;
+}
+
+export function resolvePaymentIssueFromBillingPayload(
+  payload: BillingStatusPayload | null,
+): PaymentIssueBannerResolution | null {
+  if (!payload) {
+    return null;
+  }
+
+  const premiumVariant = resolvePaymentIssueBanner(payload.provider, payload.entitlement_state);
+
+  if (premiumVariant) {
+    return {
+      variant: premiumVariant,
+      provider: payload.provider,
+      canManagePayment: payload.can_manage_payment,
+      target: 'premium',
+    };
+  }
+
+  const coaching = payload.coaching_subscription;
+
+  if (!coaching) {
+    return null;
+  }
+
+  const coachingVariant = resolvePaymentIssueBanner(
+    coaching.provider,
+    coaching.entitlement_state,
+  );
+
+  if (!coachingVariant) {
+    return null;
+  }
+
+  return {
+    variant: coachingVariant,
+    provider: coaching.provider,
+    canManagePayment: coaching.can_manage_payment,
+    target: 'coaching',
   };
 }
 
@@ -437,11 +521,7 @@ export async function refreshBillingStatusPayload(
 export function bannerVariantFromPayload(
   payload: BillingStatusPayload | null,
 ): PaymentIssueBannerVariant | null {
-  if (!payload) {
-    return null;
-  }
-
-  return resolvePaymentIssueBanner(payload.provider, payload.entitlement_state);
+  return resolvePaymentIssueFromBillingPayload(payload)?.variant ?? null;
 }
 
 export function nextBillingAmountFromPayload(payload: BillingStatusPayload | null): number | null {

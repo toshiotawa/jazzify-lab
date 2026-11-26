@@ -9,6 +9,7 @@ import {
   billingCorsHeaders,
   getStripeClient,
   isActiveEntitlementState,
+  isJapanStripeEligible,
   resolveStripePriceByLookupKey,
   stripeLookupKeyForPlan,
   stripePlanCodeForLookupKey,
@@ -38,9 +39,6 @@ const isStripeProductKind = (value: unknown): value is StripeProductKind =>
 
 const isStripePlanTarget = (value: unknown): value is StripePlanTarget =>
   value === 'monthly' || value === 'yearly';
-
-const normalizeCountry = (value: string | null | undefined): string | null =>
-  value ? value.trim().toUpperCase() : null;
 
 export const handler: Handler = async (event, _context) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -132,7 +130,9 @@ export const handler: Handler = async (event, _context) => {
 
       .from('profiles')
 
-      .select('stripe_customer_id, email, country, rank, lemon_trial_used, stripe_trial_start')
+      .select(
+        'stripe_customer_id, email, country, rank, lemon_trial_used, stripe_trial_start, billing_currency, preferred_locale',
+      )
 
       .eq('id', userId)
 
@@ -148,19 +148,10 @@ export const handler: Handler = async (event, _context) => {
       };
     }
 
-    const normalizedCountry = normalizeCountry(profile?.country ?? null);
-
-    if (
-      normalizedCountry &&
-      normalizedCountry !== 'JP' &&
-      normalizedCountry !== 'JPN' &&
-      normalizedCountry !== 'JAPAN'
-    ) {
+    if (!isJapanStripeEligible(profile)) {
       return {
         statusCode: 400,
-
         headers: billingCorsHeaders,
-
         body: JSON.stringify({
           error:
             'Stripe checkout is available only for Japan users. Please use the global checkout.',
@@ -266,6 +257,35 @@ export const handler: Handler = async (event, _context) => {
       subscriptionRow?.trial_used === true ||
       profile.lemon_trial_used === true ||
       profile.stripe_trial_start != null;
+
+    const nowIso = new Date().toISOString();
+    const { data: openIntent } = await supabase
+      .from('checkout_intents')
+      .select('id, provider_checkout_session_id, price_lookup_key')
+      .eq('user_id', userId)
+      .eq('provider', 'stripe')
+      .eq('product_kind', productKind)
+      .eq('status', 'checkout_created')
+      .gt('expires_at', nowIso)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (openIntent?.provider_checkout_session_id && openIntent.price_lookup_key === lookupKey) {
+      const existingSession = await stripe.checkout.sessions.retrieve(
+        openIntent.provider_checkout_session_id,
+      );
+      if (existingSession.status === 'open' && existingSession.url) {
+        return {
+          statusCode: 200,
+          headers: billingCorsHeaders,
+          body: JSON.stringify({
+            sessionId: existingSession.id,
+            url: existingSession.url,
+          }),
+        };
+      }
+    }
 
     const { data: checkoutIntent, error: intentError } = await supabase
 

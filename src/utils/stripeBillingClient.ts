@@ -49,7 +49,9 @@ export async function cancelPendingStripePlanChange(): Promise<{ ok: boolean; er
   return { ok: false, error: await readError(response, 'Failed to cancel pending plan change') };
 }
 
-export async function resumeStripeSubscription(): Promise<{
+export async function resumeStripeSubscription(
+  product: 'premium' | 'coaching' = 'premium',
+): Promise<{
   ok: boolean;
   clearedScheduledCancel?: boolean;
   error?: string;
@@ -57,6 +59,7 @@ export async function resumeStripeSubscription(): Promise<{
   const response = await fetch('/.netlify/functions/stripeResumeSubscription', {
     method: 'POST',
     headers: await authHeaders(),
+    body: JSON.stringify({ product }),
   });
   if (response.ok) {
     const data = (await response.json().catch(() => null)) as {
@@ -70,10 +73,13 @@ export async function resumeStripeSubscription(): Promise<{
   return { ok: false, error: await readError(response, 'Failed to resume subscription') };
 }
 
-export async function cancelStripeSubscriptionRequest(): Promise<{ ok: boolean; error?: string }> {
+export async function cancelStripeSubscriptionRequest(
+  product: 'premium' | 'coaching' = 'premium',
+): Promise<{ ok: boolean; error?: string }> {
   const response = await fetch('/.netlify/functions/stripeCancelSubscription', {
     method: 'POST',
     headers: await authHeaders(),
+    body: JSON.stringify({ product }),
   });
   if (response.ok) {
     const data = (await response.json().catch(() => null)) as { scheduled?: unknown } | null;
