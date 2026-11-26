@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import {
   authenticateRequest,
   billingCorsHeaders,
+  extractActiveScheduleId,
   getStripeClient,
   getUserStripeSubscription,
   mirrorStripeSubscription,
@@ -48,9 +49,9 @@ export const handler: Handler = async (event) => {
 
     const stripe = getStripeClient();
     const current = await retrieveExpandedStripeSubscription(stripe, row.provider_subscription_id);
-    const scheduleId =
-      typeof current.schedule === 'string' ? current.schedule : (current.schedule?.id ?? null);
-    if (!scheduleId) {
+    const activeScheduleId = extractActiveScheduleId(current);
+    if (!activeScheduleId) {
+      await mirrorStripeSubscription(supabase, current, { stripe });
       return {
         statusCode: 409,
         headers: billingCorsHeaders,
@@ -58,9 +59,9 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    await stripe.subscriptionSchedules.release(scheduleId);
+    await stripe.subscriptionSchedules.release(activeScheduleId);
     const refreshed = await retrieveExpandedStripeSubscription(stripe, current.id);
-    await mirrorStripeSubscription(supabase, refreshed);
+    await mirrorStripeSubscription(supabase, refreshed, { stripe });
     await supabase.from('subscription_events').insert({
       user_id: userId,
       provider: 'stripe',

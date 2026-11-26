@@ -1,7 +1,9 @@
 import type { Handler } from '@netlify/functions';
+import Stripe from 'stripe';
 import {
   authenticateRequest,
   billingCorsHeaders,
+  extractActiveScheduleId,
   getStripeClient,
   getUserStripeSubscription,
   mirrorStripeSubscription,
@@ -22,6 +24,55 @@ const parseTarget = (body: string | null): StripePlanTarget | null => {
     return parsed.target === 'monthly' || parsed.target === 'yearly' ? parsed.target : null;
   } catch {
     return null;
+  }
+};
+
+export const scheduleStripePlanChange = async (
+  stripe: Stripe,
+  current: Stripe.Subscription,
+  targetPriceId: string,
+): Promise<void> => {
+  const schedule = await stripe.subscriptionSchedules.create({ from_subscription: current.id });
+  const currentPhase = schedule.current_phase;
+  const phaseStart = currentPhase?.start_date ?? current.current_period_start;
+  const currentItem = current.items.data[0] ?? null;
+  const currentPriceId = currentItem?.price.id ?? null;
+  if (!currentItem || !currentPriceId) {
+    throw new Error('Subscription item not found');
+  }
+  const quantity = currentItem.quantity ?? 1;
+    const currentPhaseTrialEnd =
+      currentPhase != null && 'trial_end' in currentPhase
+        ? (currentPhase as { trial_end?: number | null }).trial_end
+        : undefined;
+    const trialEndCandidate = currentPhaseTrialEnd ?? current.trial_end;
+  const trialEnd =
+    typeof trialEndCandidate === 'number' && trialEndCandidate > phaseStart
+      ? trialEndCandidate
+      : undefined;
+
+  try {
+    await stripe.subscriptionSchedules.update(schedule.id, {
+      end_behavior: 'release',
+      phases: [
+        {
+          start_date: phaseStart,
+          end_date: currentPhase?.end_date ?? current.current_period_end,
+          items: [{ price: currentPriceId, quantity }],
+          proration_behavior: 'none',
+          ...(trialEnd ? { trial_end: trialEnd } : {}),
+        },
+        {
+          start_date: current.current_period_end,
+          items: [{ price: targetPriceId, quantity }],
+          iterations: 1,
+          proration_behavior: 'none',
+        },
+      ],
+    });
+  } catch (error) {
+    await stripe.subscriptionSchedules.release(schedule.id).catch(() => undefined);
+    throw error;
   }
 };
 
@@ -97,7 +148,7 @@ export const handler: Handler = async (event) => {
         }),
       };
     }
-    if (current.schedule) {
+    if (extractActiveScheduleId(current)) {
       return {
         statusCode: 409,
         headers: billingCorsHeaders,
@@ -105,53 +156,15 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const currentItem = current.items.data[0] ?? null;
-    const currentPriceId = currentItem?.price.id ?? null;
-    if (!currentItem || !currentPriceId) {
-      return {
-        statusCode: 409,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Subscription item not found' }),
-      };
-    }
-
     const price = await resolveStripePriceByLookupKey(
       stripe,
       stripeLookupKeyForPlan('premium', target),
     );
-    const schedule = await stripe.subscriptionSchedules.create({ from_subscription: current.id });
-    const phaseStart = schedule.current_phase?.start_date ?? current.current_period_start;
-    const quantity = currentItem.quantity ?? 1;
-    const trialEnd =
-      typeof current.trial_end === 'number' && current.trial_end > Math.floor(Date.now() / 1000)
-        ? current.trial_end
-        : undefined;
 
-    try {
-      await stripe.subscriptionSchedules.update(schedule.id, {
-        end_behavior: 'release',
-        phases: [
-          {
-            start_date: phaseStart,
-            end_date: current.current_period_end,
-            items: [{ price: currentPriceId, quantity }],
-            proration_behavior: 'none',
-            ...(trialEnd ? { trial_end: trialEnd } : {}),
-          },
-          {
-            start_date: current.current_period_end,
-            items: [{ price: price.id, quantity }],
-            proration_behavior: 'none',
-          },
-        ],
-      });
-    } catch (error) {
-      await stripe.subscriptionSchedules.release(schedule.id).catch(() => undefined);
-      throw error;
-    }
+    await scheduleStripePlanChange(stripe, current, price.id);
 
     const refreshed = await retrieveExpandedStripeSubscription(stripe, current.id);
-    await mirrorStripeSubscription(supabase, refreshed);
+    await mirrorStripeSubscription(supabase, refreshed, { stripe });
     await supabase.from('subscription_events').insert({
       user_id: userId,
       provider: 'stripe',

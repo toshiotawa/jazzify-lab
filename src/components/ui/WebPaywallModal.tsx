@@ -8,7 +8,8 @@ import { useAuthStore } from '@/stores/authStore';
 
 import { PREMIUM_PRICING_JPY, PREMIUM_PRICING_USD, formatUsdAmount } from '@/utils/premiumPricing';
 
-import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
+import { isJapanStripeEligible, resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
+import { useGeoStore } from '@/stores/geoStore';
 
 import { trackEvent } from '@/utils/analytics/ga';
 
@@ -35,24 +36,6 @@ interface WebPaywallModalProps {
 
   onContinueFree?: () => void;
 }
-
-const isJapanStripeCheckoutEligible = (
-  profile:
-    | {
-        billing_currency?: string | null;
-        country?: string | null;
-        preferred_locale?: string | null;
-      }
-    | null
-    | undefined,
-): boolean => {
-  if (!profile) return false;
-  if (profile.billing_currency === 'USD') return false;
-  if (profile.billing_currency === 'JPY') return true;
-  const country = profile.country?.trim().toUpperCase() ?? null;
-  if (country) return country === 'JP' || country === 'JPN' || country === 'JAPAN';
-  return profile.preferred_locale !== 'en';
-};
 
 const PRICE_COPY = {
   ja: {
@@ -201,6 +184,8 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
 }) => {
   const { profile } = useAuthStore();
 
+  const geoCountry = useGeoStore((s) => s.country);
+
   const [loading, setLoading] = useState(false);
 
   const [redirecting, setRedirecting] = useState(false);
@@ -222,12 +207,20 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     profile?.stripe_trial_start != null ||
     billingPayload?.trial_used === true;
 
+  const useStripeCheckout =
+    billingCurrency === 'JPY' &&
+    isJapanStripeEligible({
+      country: profile?.country ?? geoCountry ?? null,
+      billing_currency: profile?.billing_currency ?? null,
+      preferred_locale: profile?.preferred_locale ?? null,
+    });
+
   const copy = resolveWebPaywallCopy(
     source,
     isEnglishCopy,
     trialUsed,
     billingCurrency,
-    selectedStripePlan,
+    useStripeCheckout ? selectedStripePlan : 'yearly',
   );
 
   const priceCopy = !isEnglishCopy
@@ -236,21 +229,13 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
       ? PRICE_COPY.enUsd
       : PRICE_COPY.enJpy;
 
-  const stripeSelectedAmount =
-    selectedStripePlan === 'yearly' ? PREMIUM_PRICING_JPY.yearly : PREMIUM_PRICING_JPY.monthly;
-
-  const stripeFootnote =
-    billingCurrency !== 'JPY'
-      ? null
-      : trialUsed
-        ? isEnglishCopy
-          ? `You will be charged ¥${stripeSelectedAmount.toLocaleString('en-US')} today. Cancel anytime.`
-          : `本日${stripeSelectedAmount.toLocaleString('ja-JP')}円（税込）が請求されます。いつでも解約できます。`
-        : isEnglishCopy
-          ? `7-day free trial, then ¥${stripeSelectedAmount.toLocaleString('en-US')} ${selectedStripePlan === 'yearly' ? '/ year' : '/ month'}. Cancel anytime.`
-          : `7日間無料。その後${selectedStripePlan === 'yearly' ? '年額' : '月額'}${stripeSelectedAmount.toLocaleString('ja-JP')}円（税込）。いつでも解約できます。`;
-
-  const useStripeCheckout = billingCurrency === 'JPY' && isJapanStripeCheckoutEligible(profile);
+  const stripeFootnote = !useStripeCheckout
+    ? null
+    : trialUsed
+      ? isEnglishCopy
+        ? 'Cancel anytime.'
+        : 'いつでも解約できます。'
+      : null;
 
   const checkoutBusy = loading || redirecting;
 
@@ -293,12 +278,13 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
       return;
     }
 
-    const checkoutValue =
-      billingCurrency === 'USD'
-        ? PREMIUM_PRICING_USD.monthly
-        : selectedStripePlan === 'yearly'
-          ? PREMIUM_PRICING_JPY.yearly
-          : PREMIUM_PRICING_JPY.monthly;
+    const checkoutValue = useStripeCheckout
+      ? selectedStripePlan === 'yearly'
+        ? PREMIUM_PRICING_JPY.yearly
+        : PREMIUM_PRICING_JPY.monthly
+      : billingCurrency === 'USD'
+        ? PREMIUM_PRICING_USD.yearly
+        : PREMIUM_PRICING_JPY.yearly;
 
     trackEvent(
       'paywall_click',
@@ -309,7 +295,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
 
         plan: 'premium',
 
-        interval: billingCurrency === 'JPY' ? selectedStripePlan : 'provider_choice',
+        interval: useStripeCheckout ? selectedStripePlan : 'provider_choice',
       }),
     );
 
@@ -322,7 +308,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
 
         plan: 'premium',
 
-        interval: billingCurrency === 'JPY' ? selectedStripePlan : 'provider_choice',
+        interval: useStripeCheckout ? selectedStripePlan : 'provider_choice',
       }),
     );
 
@@ -570,7 +556,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
           </p>
         )}
 
-        {billingCurrency !== 'JPY' && copy.trialUsedNotice ? (
+        {copy.trialUsedNotice ? (
           <p className="text-xs text-amber-200/90 text-center mb-3 leading-relaxed">
             {copy.trialUsedNotice}
           </p>

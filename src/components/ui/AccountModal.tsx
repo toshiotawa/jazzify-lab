@@ -47,6 +47,7 @@ import {
 
 import {
   cancelSubscriptionForProvider,
+  fetchPaymentMethodLinkForProvider,
   resumeSubscriptionForProvider,
 } from '@/utils/webBillingActions';
 
@@ -63,7 +64,7 @@ import {
   nextBillingAmountFromPayload,
 } from '@/utils/billingStatusClient';
 
-import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
+import { isJapanStripeEligible, resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
 
 import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
@@ -215,11 +216,14 @@ const AccountPage: React.FC = () => {
       setBillingActionLoading(purpose);
 
       try {
-        const url = await (async (): Promise<string | null> => {
-          if (billingPayload?.provider === 'stripe') return fetchStripeBillingLink(purpose);
-          if (billingPayload?.provider === 'lemon') return fetchLemonBillingLink(purpose);
-          return null;
-        })();
+        const url =
+          purpose === 'payment_method'
+            ? await fetchPaymentMethodLinkForProvider(billingPayload?.provider)
+            : await (async (): Promise<string | null> => {
+                if (billingPayload?.provider === 'stripe') return fetchStripeBillingLink(purpose);
+                if (billingPayload?.provider === 'lemon') return fetchLemonBillingLink(purpose);
+                return null;
+              })();
 
         if (url) {
           window.open(url, '_blank');
@@ -445,7 +449,7 @@ const AccountPage: React.FC = () => {
     setBillingActionLoading('coaching_payment');
 
     try {
-      const url = await fetchStripeBillingLink('payment_method');
+      const url = await fetchPaymentMethodLinkForProvider('stripe');
 
       if (url) {
         window.open(url, '_blank');
@@ -592,10 +596,17 @@ const AccountPage: React.FC = () => {
 
   const coachingCheckoutEnabled = import.meta.env.VITE_ENABLE_STRIPE_COACHING_CHECKOUT === 'true';
 
+  const japanStripeEligible = isJapanStripeEligible({
+    country: profile?.country ?? geoCountry ?? null,
+    billing_currency: profile?.billing_currency ?? null,
+    preferred_locale: profile?.preferred_locale ?? null,
+  });
+
   const showCoachingCheckoutButton =
     coachingCheckoutEnabled &&
     !isIOSWebView() &&
     billingPayload?.billing_currency === 'JPY' &&
+    japanStripeEligible &&
     billingPayload?.can_start_coaching === true;
 
   /** フリー・期限切れでは次回更新日・請求額を出さない（DBに period 残存していても） */
@@ -1462,7 +1473,7 @@ const AccountPage: React.FC = () => {
 
                   {billingPayload &&
                     (billingPayload.coaching_subscription ||
-                      (!isIOSWebView() && billingCurrency === 'JPY')) && (
+                      (!isIOSWebView() && billingCurrency === 'JPY' && japanStripeEligible)) && (
                       <div className="bg-emerald-900/20 rounded-lg p-3 border border-emerald-700/30 mt-2 space-y-2">
                         <p className="text-sm text-emerald-200 font-semibold mb-1">
                           {isEnglishCopy ? 'Personal coaching' : '個別コーチング'}
@@ -1515,21 +1526,34 @@ const AccountPage: React.FC = () => {
                               );
                             })()}
 
-                            {formatPeriodEnd(
-                              billingPayload.coaching_subscription.pending_cancel_effective_at ??
-                                billingPayload.coaching_subscription.current_period_ends_at,
-                            ) && (
-                              <p className="text-xs text-gray-400">
-                                {billingPayload.coaching_subscription.pending_cancel_effective_at !=
-                                null
-                                  ? isEnglishCopy
-                                    ? `Coaching ends: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
-                                    : `コーチング終了日: ${formatPeriodEnd(billingPayload.coaching_subscription.pending_cancel_effective_at)}`
-                                  : isEnglishCopy
-                                    ? `Next renewal: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`
-                                    : `次回更新日: ${formatPeriodEnd(billingPayload.coaching_subscription.current_period_ends_at)}`}
-                              </p>
-                            )}
+                            {(() => {
+                              const coachingSub = billingPayload.coaching_subscription;
+                              const coachingPendingCancel =
+                                coachingSub.pending_cancel_effective_at != null ||
+                                coachingSub.entitlement_state === 'cancelled_but_active_until_end';
+                              const hideCoachingSchedule =
+                                coachingSub.entitlement_state === 'payment_issue_no_access';
+                              if (hideCoachingSchedule) return null;
+
+                              const periodEnd = coachingPendingCancel
+                                ? (coachingSub.pending_cancel_effective_at ??
+                                  coachingSub.current_period_ends_at)
+                                : coachingSub.current_period_ends_at;
+                              const periodEndLabel = formatPeriodEnd(periodEnd);
+                              if (!periodEndLabel) return null;
+
+                              return (
+                                <p className="text-xs text-gray-400">
+                                  {coachingPendingCancel
+                                    ? isEnglishCopy
+                                      ? `Coaching ends: ${periodEndLabel}`
+                                      : `コーチング終了日: ${periodEndLabel}`
+                                    : isEnglishCopy
+                                      ? `Next renewal: ${periodEndLabel}`
+                                      : `次回更新日: ${periodEndLabel}`}
+                                </p>
+                              );
+                            })()}
 
                             {billingPayload.coaching_subscription.can_resume && (
                               <button
@@ -1776,13 +1800,17 @@ const AccountPage: React.FC = () => {
 
                 {!canWithdrawAccount && (
                   <p className="text-xs text-amber-400">
-                    {isPremiumMember
+                    {hasActiveCoachingSubscription && !isPremiumMember
                       ? isEnglishCopy
-                        ? 'Your subscription period has not ended yet. Please cancel first and wait until your plan expires.'
-                        : 'まだサブスクリプションの利用期間が残っているため、退会できません。先に解約のうえ、利用期間終了後に退会してください。'
-                      : isEnglishCopy
-                        ? 'Your account is not on the Free plan yet. Use Refresh to update your plan status, then try again after it shows Free.'
-                        : 'まだフリープランではないため、退会できません。「状態を更新」でプラン表示を確認し、フリーになってから退会してください。'}
+                        ? 'You still have an active coaching subscription. Cancel coaching first, then delete your account after the coaching period ends.'
+                        : '個別コーチング契約が残っているため退会できません。先にコーチングを解約のうえ、利用期間終了後に退会してください。'
+                      : isPremiumMember
+                        ? isEnglishCopy
+                          ? 'Your subscription period has not ended yet. Please cancel first and wait until your plan expires.'
+                          : 'まだサブスクリプションの利用期間が残っているため、退会できません。先に解約のうえ、利用期間終了後に退会してください。'
+                        : isEnglishCopy
+                          ? 'Your account is not on the Free plan yet. Use Refresh to update your plan status, then try again after it shows Free.'
+                          : 'まだフリープランではないため、退会できません。「状態を更新」でプラン表示を確認し、フリーになってから退会してください。'}
                   </p>
                 )}
 
@@ -1854,13 +1882,17 @@ const AccountPage: React.FC = () => {
 
                     title={
                       !canWithdrawAccount
-                        ? isPremiumMember
+                        ? hasActiveCoachingSubscription && !isPremiumMember
                           ? isEnglishCopy
-                            ? 'Your subscription period has not ended yet. Please cancel first.'
-                            : 'まだサブスクリプションの利用期間が残っています。先に解約してください。'
-                          : isEnglishCopy
-                            ? 'You must be on the Free plan to delete your account.'
-                            : 'フリープランになるまで退会できません。'
+                            ? 'Cancel coaching first, then delete your account after coaching ends.'
+                            : 'コーチングを解約し、利用期間終了後に退会してください。'
+                          : isPremiumMember
+                            ? isEnglishCopy
+                              ? 'Your subscription period has not ended yet. Please cancel first.'
+                              : 'まだサブスクリプションの利用期間が残っています。先に解約してください。'
+                            : isEnglishCopy
+                              ? 'You must be on the Free plan to delete your account.'
+                              : 'フリープランになるまで退会できません。'
                         : ''
                     }
                   >
@@ -1956,6 +1988,8 @@ const AccountPage: React.FC = () => {
         )}
 
         pendingPlanCode={null}
+
+        productKind="coaching"
 
         isEnglishCopy={isEnglishCopy}
 

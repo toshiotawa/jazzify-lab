@@ -8,6 +8,7 @@ import {
   mirrorStripeSubscription,
   parseStripeBillingProduct,
   retrieveExpandedStripeSubscription,
+  STRIPE_SUBSCRIPTION_EXPAND,
 } from './lib/stripeBilling';
 
 export const handler: Handler = async (event) => {
@@ -72,9 +73,9 @@ export const handler: Handler = async (event) => {
 
     const updated = await stripe.subscriptions.update(current.id, {
       cancel_at_period_end: false,
-      expand: ['items.data.price.product', 'schedule', 'schedule.phases.items.price'],
+      expand: [...STRIPE_SUBSCRIPTION_EXPAND],
     });
-    await mirrorStripeSubscription(supabase, updated);
+    await mirrorStripeSubscription(supabase, updated, { stripe });
     await supabase.from('subscription_events').insert({
       user_id: userId,
       provider: 'stripe',

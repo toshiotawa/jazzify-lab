@@ -6,6 +6,7 @@ export interface CancelSubscriptionConfirmModalProps {
   open: boolean;
   periodEndLabel: string | null;
   pendingPlanCode: string | null;
+  productKind?: 'premium' | 'coaching';
   isEnglishCopy: boolean;
   loading: boolean;
   onClose: () => void;
@@ -16,6 +17,7 @@ const CancelSubscriptionConfirmModal: React.FC<CancelSubscriptionConfirmModalPro
   open,
   periodEndLabel,
   pendingPlanCode,
+  productKind = 'premium',
   isEnglishCopy,
   loading,
   onClose,
@@ -23,24 +25,46 @@ const CancelSubscriptionConfirmModal: React.FC<CancelSubscriptionConfirmModalPro
 }) => {
   if (!open) return null;
 
-  const title = isEnglishCopy
-    ? 'Cancel your subscription?'
-    : 'サブスクリプションを解約しますか？';
+  const isCoaching = productKind === 'coaching';
 
-  const bodyLines = isEnglishCopy
-    ? [
-      'Your cancellation will be scheduled. You can keep using premium features until the end of the current billing period.',
-      periodEndLabel ? `Access until: ${periodEndLabel}` : null,
-      pendingPlanCode ? 'Your scheduled plan change will also be cancelled.' : null,
-    ]
-    : [
-      '解約を予約しても、現在の請求期間の終了日まではプレミアム機能を利用できます。期間終了後は自動更新されません。',
-      periodEndLabel ? `利用期限: ${periodEndLabel}` : null,
-      pendingPlanCode ? '予約中のプラン変更も取り消されます。' : null,
-    ];
+  const title = isCoaching
+    ? isEnglishCopy
+      ? 'Cancel your coaching subscription?'
+      : '個別コーチングを解約しますか？'
+    : isEnglishCopy
+      ? 'Cancel your subscription?'
+      : 'サブスクリプションを解約しますか？';
+
+  const bodyLines = isCoaching
+    ? isEnglishCopy
+      ? [
+          'Your coaching cancellation will be scheduled. You can keep coaching until the end of the current billing period. Your Premium subscription stays active.',
+          periodEndLabel ? `Coaching access until: ${periodEndLabel}` : null,
+        ]
+      : [
+          '解約を予約しても、現在の請求期間の終了日までは個別コーチングを利用できます。Premium契約はそのまま継続されます。',
+          periodEndLabel ? `コーチングの利用期限: ${periodEndLabel}` : null,
+        ]
+    : isEnglishCopy
+      ? [
+          'Your cancellation will be scheduled. You can keep using premium features until the end of the current billing period.',
+          periodEndLabel ? `Access until: ${periodEndLabel}` : null,
+          pendingPlanCode ? 'Your scheduled plan change will also be cancelled.' : null,
+        ]
+      : [
+          '解約を予約しても、現在の請求期間の終了日まではプレミアム機能を利用できます。期間終了後は自動更新されません。',
+          periodEndLabel ? `利用期限: ${periodEndLabel}` : null,
+          pendingPlanCode ? '予約中のプラン変更も取り消されます。' : null,
+        ];
 
   const cancelLabel = isEnglishCopy ? 'Keep subscription' : '解約しない';
-  const confirmLabel = isEnglishCopy ? 'Cancel subscription' : '解約する';
+  const confirmLabel = isCoaching
+    ? isEnglishCopy
+      ? 'Cancel coaching'
+      : 'コーチングを解約する'
+    : isEnglishCopy
+      ? 'Cancel subscription'
+      : '解約する';
   const closeLabel = isEnglishCopy ? 'Close' : '閉じる';
 
   return createPortal(

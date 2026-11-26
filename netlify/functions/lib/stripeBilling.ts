@@ -18,9 +18,11 @@ export const parseStripeBillingProduct = (
 ): StripeBillingProductParam => {
   if (!body?.trim()) return 'premium';
   try {
-    const parsed = JSON.parse(body) as { product?: unknown };
-    if (parsed.product === undefined) return 'premium';
-    if (parsed.product === 'premium' || parsed.product === 'coaching') return parsed.product;
+    const parsed: unknown = JSON.parse(body);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return 'invalid';
+    const record = parsed as { product?: unknown };
+    if (record.product === undefined) return 'premium';
+    if (record.product === 'premium' || record.product === 'coaching') return record.product;
     return 'invalid';
   } catch {
     return 'invalid';
@@ -95,11 +97,14 @@ interface ExistingSubscriptionForMirror {
 }
 
 export const resolveExpectedStripeLivemode = (): boolean => {
-  const explicit = process.env.STRIPE_EXPECTED_LIVEMODE;
+  const explicit = process.env.STRIPE_EXPECTED_LIVEMODE?.trim();
+  if (!explicit) return process.env.CONTEXT === 'production';
   if (explicit === 'true') return true;
   if (explicit === 'false') return false;
-  return process.env.CONTEXT === 'production';
+  throw new Error('Invalid STRIPE_EXPECTED_LIVEMODE value');
 };
+
+export const STRIPE_SUBSCRIPTION_EXPAND = ['items.data.price.product', 'schedule'] as const;
 
 const assertStripeKeyMatchesLivemode = (key: string): void => {
   const expectedLive = resolveExpectedStripeLivemode();
@@ -283,7 +288,7 @@ export const retrieveExpandedStripeSubscription = async (
   subscriptionId: string,
 ): Promise<Stripe.Subscription> => {
   const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-    expand: ['items.data.price.product', 'schedule', 'schedule.phases.items.price'],
+    expand: [...STRIPE_SUBSCRIPTION_EXPAND],
   });
   assertStripeResourceLivemode(subscription.livemode, `Stripe subscription ${subscriptionId}`);
   return subscription;
@@ -388,38 +393,97 @@ const shouldSkipPremiumMirrorForExistingProvider = (
   return existing.provider !== 'none' && isActiveEntitlementState(existing.entitlement_state);
 };
 
-const pendingPlanFromSchedule = (
-  subscription: Stripe.Subscription,
-): {
+export type PendingPlanResolution = {
   pendingPlanCode: string | null;
   pendingPriceId: string | null;
   effectiveAt: string | null;
-} => {
-  const schedule = typeof subscription.schedule === 'string' ? null : subscription.schedule;
-  const nextPhase = schedule?.phases?.[1] ?? null;
-  const nextPrice = nextPhase?.items?.[0]?.price ?? null;
+};
+
+const NULL_PENDING_PLAN: PendingPlanResolution = {
+  pendingPlanCode: null,
+  pendingPriceId: null,
+  effectiveAt: null,
+};
+
+export const extractActiveScheduleId = (
+  subscription: Pick<Stripe.Subscription, 'schedule'>,
+): string | null => {
+  const schedule = subscription.schedule;
+  if (schedule == null) return null;
+  if (typeof schedule === 'string') return schedule;
+  if (schedule.status === 'active' || schedule.status === 'not_started') return schedule.id;
+  return null;
+};
+
+export const resolvePendingPlanFromScheduleObject = (
+  schedule: Stripe.SubscriptionSchedule | null,
+  currentPlanCode: string,
+  cancelAtPeriodEnd: boolean,
+): PendingPlanResolution => {
+  if (cancelAtPeriodEnd) return NULL_PENDING_PLAN;
+  if (!schedule || schedule.status !== 'active') return NULL_PENDING_PLAN;
+
+  const currentPhaseEnd = schedule.current_phase?.end_date ?? null;
+  if (currentPhaseEnd == null) return NULL_PENDING_PLAN;
+
+  const phases = [...(schedule.phases ?? [])].sort((a, b) => a.start_date - b.start_date);
+  const nextPhase = phases.find((phase) => phase.start_date >= currentPhaseEnd) ?? null;
+  if (!nextPhase) return NULL_PENDING_PLAN;
+
+  const nextPrice = nextPhase.items?.[0]?.price ?? null;
   const nextPriceId = typeof nextPrice === 'string' ? nextPrice : (nextPrice?.id ?? null);
   const nextLookupKey =
     typeof nextPrice === 'string' || !nextPrice || !('lookup_key' in nextPrice)
       ? null
       : (nextPrice.lookup_key ?? null);
-  const effectiveAt = toIsoStringOrNull(nextPhase?.start_date ?? null);
-  if (
-    typeof nextPhase?.start_date === 'number' &&
-    nextPhase.start_date <= Math.floor(Date.now() / 1000)
-  ) {
-    return { pendingPlanCode: null, pendingPriceId: null, effectiveAt: null };
-  }
   const pendingPlanCode = stripePlanCodeForLookupKey(nextLookupKey);
-  if (!nextPriceId || pendingPlanCode === 'unknown' || !effectiveAt) {
-    return { pendingPlanCode: null, pendingPriceId: null, effectiveAt: null };
+  if (pendingPlanCode === 'unknown' || pendingPlanCode === currentPlanCode || !nextPriceId) {
+    return NULL_PENDING_PLAN;
   }
+
+  const effectiveAt = toIsoStringOrNull(nextPhase.start_date);
+  if (!effectiveAt) return NULL_PENDING_PLAN;
+
   return { pendingPlanCode, pendingPriceId: nextPriceId, effectiveAt };
+};
+
+export const resolvePendingPlanForSubscription = async (
+  stripe: Stripe | undefined,
+  subscription: Stripe.Subscription,
+  currentPlanCode: string,
+): Promise<PendingPlanResolution> => {
+  if (subscription.cancel_at_period_end) return NULL_PENDING_PLAN;
+
+  const scheduleId = extractActiveScheduleId(subscription);
+  if (!scheduleId) return NULL_PENDING_PLAN;
+
+  let schedule: Stripe.SubscriptionSchedule | null =
+    typeof subscription.schedule === 'object' && subscription.schedule?.id === scheduleId
+      ? subscription.schedule
+      : null;
+
+  const scheduleNeedsPriceExpansion = (value: Stripe.SubscriptionSchedule | null): boolean =>
+    value?.phases?.some((phase) => typeof phase.items?.[0]?.price === 'string') === true;
+
+  if ((!schedule || scheduleNeedsPriceExpansion(schedule)) && stripe) {
+    schedule = await stripe.subscriptionSchedules.retrieve(scheduleId, {
+      expand: ['phases.items.price'],
+    });
+  }
+
+  if (!schedule) return NULL_PENDING_PLAN;
+
+  return resolvePendingPlanFromScheduleObject(
+    schedule,
+    currentPlanCode,
+    subscription.cancel_at_period_end,
+  );
 };
 
 export const mirrorStripeSubscription = async (
   supabase: SupabaseClient,
   subscription: Stripe.Subscription,
+  options?: { stripe?: Stripe },
 ): Promise<StripeMirrorResult> => {
   const priceInfo = priceInfoFromSubscription(subscription);
   if (!priceInfo?.productKind)
@@ -469,7 +533,11 @@ export const mirrorStripeSubscription = async (
     return { kind: 'ignored', userId, reason: 'active_different_provider_exists' };
   }
 
-  const pendingPlan = pendingPlanFromSchedule(subscription);
+  const pendingPlan = await resolvePendingPlanForSubscription(
+    options?.stripe,
+    subscription,
+    priceInfo.planCode,
+  );
   const stripeTrialUsed = subscription.status === 'trialing' || subscription.trial_start != null;
   const trialUsed = existing?.trial_used === true || stripeTrialUsed;
   const trialUsedAt = existing?.trial_used_at ?? toIsoStringOrNull(subscription.trial_start);
@@ -493,7 +561,7 @@ export const mirrorStripeSubscription = async (
       pending_plan_code: pendingPlan.pendingPlanCode,
       pending_plan_effective_at: pendingPlan.effectiveAt,
       pending_provider_variant_id: pendingPlan.pendingPriceId,
-      pending_from_provider_variant_id: priceInfo.priceId,
+      pending_from_provider_variant_id: pendingPlan.pendingPlanCode ? pendingPlan.pendingPriceId : null,
       pending_effective_at_snapshot: pendingPlan.effectiveAt,
       pending_status: pendingPlan.pendingPlanCode ? 'scheduled' : null,
       pending_locked_at: null,
@@ -516,8 +584,8 @@ export const mirrorStripeSubscription = async (
 
   const profileUpdates: Record<string, string | null> = {
     rank: isActiveEntitlementState(mapped.entitlementState) ? 'premium' : 'free',
-    stripe_customer_id: customerId,
   };
+  if (customerId) profileUpdates.stripe_customer_id = customerId;
   const trialStart = toIsoStringOrNull(subscription.trial_start);
   const trialEnd = toIsoStringOrNull(subscription.trial_end);
   if (trialStart) profileUpdates.stripe_trial_start = trialStart;

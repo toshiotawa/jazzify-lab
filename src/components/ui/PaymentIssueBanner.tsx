@@ -14,9 +14,7 @@ import {
   type BillingStatusPayload,
 } from '@/utils/billingStatusClient';
 
-import { fetchLemonBillingLink } from '@/utils/lemonBillingClient';
-
-import { fetchStripeBillingLink } from '@/utils/stripeBillingClient';
+import { fetchPaymentMethodLinkForProvider } from '@/utils/webBillingActions';
 
 /**
 
@@ -91,10 +89,7 @@ const PaymentIssueBanner: React.FC = () => {
     setOpeningPayment(true);
 
     try {
-      const url =
-        billingProvider === 'stripe'
-          ? await fetchStripeBillingLink('payment_method')
-          : await fetchLemonBillingLink('payment_method');
+      const url = await fetchPaymentMethodLinkForProvider(billingProvider);
 
       if (url) {
         window.open(url, '_blank');

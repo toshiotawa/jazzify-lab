@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   getStripeClient,
   getSupabaseServiceClient,
@@ -59,11 +60,13 @@ const constructStripeWebhookEvent = (
   throw lastError instanceof Error ? lastError : new Error('Invalid Stripe signature');
 };
 
-const recordStripeEventForProcessing = async (
+export const claimStripeEventForProcessing = async (
+  supabase: SupabaseClient,
   stripeEvent: Stripe.Event,
+  nowMs = Date.now(),
 ): Promise<StripeEventRecordResult> => {
-  const supabase = getSupabaseServiceClient();
-  const nowIso = new Date().toISOString();
+  const nowIso = new Date(nowMs).toISOString();
+  const staleCutoffIso = new Date(nowMs - 5 * 60 * 1000).toISOString();
   const { error } = await supabase.from('subscription_events').insert({
     user_id: null,
     provider: 'stripe',
@@ -92,7 +95,7 @@ const recordStripeEventForProcessing = async (
 
   const staleReceived =
     existing.processing_status === 'received' &&
-    (!existing.processed_at || Date.parse(existing.processed_at) < Date.now() - 5 * 60 * 1000);
+    (!existing.processed_at || Date.parse(existing.processed_at) < nowMs - 5 * 60 * 1000);
   if (existing.processing_status === 'failed' || staleReceived) {
     let updateQuery = supabase
       .from('subscription_events')
@@ -109,7 +112,7 @@ const recordStripeEventForProcessing = async (
     } else {
       updateQuery = updateQuery.eq('processing_status', 'received');
       updateQuery = existing.processed_at
-        ? updateQuery.lt('processed_at', existing.processed_at)
+        ? updateQuery.eq('processed_at', existing.processed_at).lt('processed_at', staleCutoffIso)
         : updateQuery.is('processed_at', null);
     }
 
@@ -122,25 +125,34 @@ const recordStripeEventForProcessing = async (
   return { action: 'busy' };
 };
 
-const updateRecordedStripeEvent = async (
+const recordStripeEventForProcessing = async (
+  stripeEvent: Stripe.Event,
+): Promise<StripeEventRecordResult> =>
+  claimStripeEventForProcessing(getSupabaseServiceClient(), stripeEvent);
+
+export const updateRecordedStripeEvent = async (
+  supabase: SupabaseClient,
   stripeEvent: Stripe.Event,
   status: 'processed' | 'ignored' | 'failed',
   payload: Record<string, unknown>,
   processingError: string | null = null,
 ): Promise<void> => {
-  const userId = typeof payload.user_id === 'string' ? payload.user_id : null;
-  const { error } = await getSupabaseServiceClient()
+  const updateFields: Record<string, unknown> = {
+    processing_status: status,
+    payload: {
+      stripe_event_created: stripeEvent.created,
+      ...payload,
+    },
+    processing_error: processingError,
+    processed_at: new Date().toISOString(),
+  };
+  if (typeof payload.user_id === 'string') {
+    updateFields.user_id = payload.user_id;
+  }
+
+  const { error } = await supabase
     .from('subscription_events')
-    .update({
-      user_id: userId,
-      processing_status: status,
-      payload: {
-        stripe_event_created: stripeEvent.created,
-        ...payload,
-      },
-      processing_error: processingError,
-      processed_at: new Date().toISOString(),
-    })
+    .update(updateFields)
     .eq('provider', 'stripe')
     .eq('provider_event_id', stripeEvent.id);
   if (error) throw new Error(`Failed to update Stripe event: ${error.message}`);
@@ -158,10 +170,13 @@ const subscriptionIdFromCheckoutSession = (session: Stripe.Checkout.Session): st
   return subscription?.id ?? null;
 };
 
-const subscriptionIdFromSchedule = (schedule: Stripe.SubscriptionSchedule): string | null => {
+export const subscriptionIdFromSchedule = (
+  schedule: Pick<Stripe.SubscriptionSchedule, 'subscription' | 'released_subscription'>,
+): string | null => {
   const subscription = schedule.subscription;
   if (typeof subscription === 'string') return subscription;
-  return subscription?.id ?? null;
+  if (subscription?.id) return subscription.id;
+  return schedule.released_subscription ?? null;
 };
 
 const markCheckoutIntent = async (
@@ -184,7 +199,7 @@ const mirrorSubscriptionById = async (
 ): Promise<Awaited<ReturnType<typeof mirrorStripeSubscription>> | null> => {
   if (!subscriptionId) return null;
   const subscription = await retrieveExpandedStripeSubscription(stripe, subscriptionId);
-  return mirrorStripeSubscription(getSupabaseServiceClient(), subscription);
+  return mirrorStripeSubscription(getSupabaseServiceClient(), subscription, { stripe });
 };
 
 export const handler = async (event: NetlifyEvent) => {
@@ -207,7 +222,7 @@ export const handler = async (event: NetlifyEvent) => {
     const expectedLivemode = resolveExpectedStripeLivemode();
     if (stripeEvent.livemode !== expectedLivemode) {
       await recordStripeEventForProcessing(stripeEvent);
-      await updateRecordedStripeEvent(stripeEvent, 'ignored', {
+      await updateRecordedStripeEvent(getSupabaseServiceClient(), stripeEvent, 'ignored', {
         reason: 'livemode_mismatch',
         expected_livemode: expectedLivemode,
       });
@@ -284,6 +299,7 @@ export const handler = async (event: NetlifyEvent) => {
     }
 
     await updateRecordedStripeEvent(
+      getSupabaseServiceClient(),
       stripeEvent,
       result?.kind === 'ignored' ? 'ignored' : 'processed',
       {
@@ -297,6 +313,7 @@ export const handler = async (event: NetlifyEvent) => {
   } catch (error) {
     try {
       await updateRecordedStripeEvent(
+        getSupabaseServiceClient(),
         stripeEvent,
         'failed',
         {},

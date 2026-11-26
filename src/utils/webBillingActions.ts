@@ -4,8 +4,10 @@ import {
 } from '@/utils/lemonBillingClient';
 import {
   cancelStripeSubscriptionRequest,
+  fetchStripeBillingLink,
   resumeStripeSubscription,
 } from '@/utils/stripeBillingClient';
+import { fetchLemonBillingLink } from '@/utils/lemonBillingClient';
 
 type BillingProductTarget = 'premium' | 'coaching';
 
@@ -20,6 +22,18 @@ export async function cancelSubscriptionForProvider(
     return cancelLemonSubscriptionRequest();
   }
   return { ok: false, error: 'Unsupported billing provider' };
+}
+
+export async function fetchPaymentMethodLinkForProvider(
+  provider: string | null | undefined,
+): Promise<string | null> {
+  if (provider === 'stripe') {
+    return fetchStripeBillingLink('payment_method');
+  }
+  if (provider === 'lemon') {
+    return fetchLemonBillingLink('payment_method');
+  }
+  return null;
 }
 
 export async function resumeSubscriptionForProvider(

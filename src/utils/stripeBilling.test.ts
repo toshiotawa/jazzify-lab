@@ -1,10 +1,15 @@
+import Stripe from 'stripe';
+import { vi } from 'vitest';
 import {
+  extractActiveScheduleId,
   getStripeClient,
   isJapanStripeEligible,
   mapStripeSubscriptionStatus,
   parseStripeBillingProduct,
   resolveExpectedStripeLivemode,
+  resolvePendingPlanFromScheduleObject,
 } from '../../netlify/functions/lib/stripeBilling';
+import { scheduleStripePlanChange } from '../../netlify/functions/stripeChangePlan';
 
 describe('stripe billing helpers', () => {
   const originalEnv = { ...process.env };
@@ -69,6 +74,87 @@ describe('stripe billing helpers', () => {
   it('rejects invalid billing product JSON instead of defaulting to premium', () => {
     expect(parseStripeBillingProduct('{not json')).toBe('invalid');
     expect(parseStripeBillingProduct(JSON.stringify({ product: 'coaching' }))).toBe('coaching');
+    expect(parseStripeBillingProduct(JSON.stringify([]))).toBe('invalid');
+    expect(parseStripeBillingProduct(JSON.stringify(123))).toBe('invalid');
     expect(parseStripeBillingProduct(null)).toBe('premium');
+  });
+
+  it('throws for invalid STRIPE_EXPECTED_LIVEMODE values', () => {
+    process.env.STRIPE_EXPECTED_LIVEMODE = 'TRUE';
+    expect(() => resolveExpectedStripeLivemode()).toThrow(/Invalid STRIPE_EXPECTED_LIVEMODE/);
+    process.env.STRIPE_EXPECTED_LIVEMODE = '1';
+    expect(() => resolveExpectedStripeLivemode()).toThrow(/Invalid STRIPE_EXPECTED_LIVEMODE/);
+  });
+
+  it('extractActiveScheduleId ignores released schedules', () => {
+    expect(extractActiveScheduleId({ schedule: null })).toBeNull();
+    expect(extractActiveScheduleId({ schedule: 'sch_1' })).toBe('sch_1');
+    expect(
+      extractActiveScheduleId({
+        schedule: { id: 'sch_2', status: 'released', object: 'subscription_schedule' } as Stripe.SubscriptionSchedule,
+      }),
+    ).toBeNull();
+    expect(
+      extractActiveScheduleId({
+        schedule: { id: 'sch_3', status: 'active', object: 'subscription_schedule' } as Stripe.SubscriptionSchedule,
+      }),
+    ).toBe('sch_3');
+  });
+
+  it('resolvePendingPlanFromScheduleObject picks future phase by start_date', () => {
+    const schedule = {
+      id: 'sch_future',
+      status: 'active',
+      current_phase: { start_date: 100, end_date: 200 },
+      phases: [
+        { start_date: 100, end_date: 200, items: [{ price: { id: 'price_monthly', lookup_key: 'jazzify_premium_monthly_jpy' } }] },
+        { start_date: 200, end_date: 300, items: [{ price: { id: 'price_yearly', lookup_key: 'jazzify_premium_yearly_jpy' } }] },
+      ],
+    } as unknown as Stripe.SubscriptionSchedule;
+
+    const resolved = resolvePendingPlanFromScheduleObject(schedule, 'core_monthly', false);
+    expect(resolved.pendingPlanCode).toBe('core_yearly');
+    expect(resolved.pendingPriceId).toBe('price_yearly');
+
+    expect(
+      resolvePendingPlanFromScheduleObject(schedule, 'core_monthly', true).pendingPlanCode,
+    ).toBeNull();
+    expect(
+      resolvePendingPlanFromScheduleObject(null, 'core_monthly', false).pendingPlanCode,
+    ).toBeNull();
+  });
+
+  it('scheduleStripePlanChange includes iterations:1 and end_behavior release', async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const release = vi.fn().mockResolvedValue({});
+    const create = vi.fn().mockResolvedValue({
+      id: 'sch_new',
+      current_phase: { start_date: 50, end_date: 100 },
+    });
+
+    const stripe = {
+      subscriptionSchedules: { create, update, release },
+    } as unknown as Stripe;
+
+    const current = {
+      id: 'sub_1',
+      current_period_start: 50,
+      current_period_end: 100,
+      trial_end: 80,
+      items: { data: [{ price: { id: 'price_m' }, quantity: 1 }] },
+    } as Stripe.Subscription;
+
+    await scheduleStripePlanChange(stripe, current, 'price_y');
+
+    expect(update).toHaveBeenCalledWith(
+      'sch_new',
+      expect.objectContaining({
+        end_behavior: 'release',
+        phases: [
+          expect.objectContaining({ trial_end: 80 }),
+          expect.objectContaining({ iterations: 1, items: [{ price: 'price_y', quantity: 1 }] }),
+        ],
+      }),
+    );
   });
 });

@@ -1,14 +1,76 @@
 import type { Handler } from '@netlify/functions';
+import Stripe from 'stripe';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  STRIPE_SUBSCRIPTION_EXPAND,
   authenticateRequest,
   billingCorsHeaders,
+  extractActiveScheduleId,
   getStripeClient,
   getUserStripeCoachingSubscription,
   getUserStripeSubscription,
   mirrorStripeSubscription,
   parseStripeBillingProduct,
   retrieveExpandedStripeSubscription,
+  type StripeBillingProductParam,
 } from './lib/stripeBilling';
+
+interface StripeCancelContext {
+  supabase: SupabaseClient;
+  stripe: Stripe;
+  userId: string;
+  product: StripeBillingProductParam;
+}
+
+export const cancelStripeSubscriptionWithScheduleRelease = async (
+  ctx: StripeCancelContext,
+  current: Stripe.Subscription,
+): Promise<Stripe.Subscription> => {
+  const { supabase, stripe, userId, product } = ctx;
+
+  if (product === 'premium') {
+    const activeScheduleId = extractActiveScheduleId(current);
+    if (activeScheduleId) {
+      await stripe.subscriptionSchedules.release(activeScheduleId);
+      await supabase.from('subscription_events').insert({
+        user_id: userId,
+        provider: 'stripe',
+        event_type: 'pending_plan_cancelled',
+        provider_event_id: null,
+        payload: {
+          provider_subscription_id: current.id,
+          reason: 'subscription_cancel_scheduled',
+        },
+        processing_status: 'processed',
+        processed_at: new Date().toISOString(),
+        livemode: current.livemode,
+      });
+    }
+  }
+
+  const updated = await stripe.subscriptions.update(current.id, {
+    cancel_at_period_end: true,
+    expand: [...STRIPE_SUBSCRIPTION_EXPAND],
+  });
+  await mirrorStripeSubscription(supabase, updated, { stripe });
+  await supabase.from('subscription_events').insert({
+    user_id: userId,
+    provider: 'stripe',
+    event_type:
+      product === 'coaching' ? 'coaching_pending_cancel_scheduled' : 'pending_cancel_scheduled',
+    provider_event_id: null,
+    payload: {
+      provider_subscription_id: updated.id,
+      product,
+      pending_cancel_effective_at: new Date(updated.current_period_end * 1000).toISOString(),
+    },
+    processing_status: 'processed',
+    processed_at: new Date().toISOString(),
+    livemode: updated.livemode,
+  });
+
+  return updated;
+};
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: billingCorsHeaders };
@@ -78,32 +140,11 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({ error: 'Cancellation already scheduled', scheduled: true }),
       };
     }
-    if (product === 'premium' && current.schedule) {
-      const scheduleId =
-        typeof current.schedule === 'string' ? current.schedule : current.schedule.id;
-      await stripe.subscriptionSchedules.release(scheduleId);
-    }
 
-    const updated = await stripe.subscriptions.update(current.id, {
-      cancel_at_period_end: true,
-      expand: ['items.data.price.product', 'schedule', 'schedule.phases.items.price'],
-    });
-    await mirrorStripeSubscription(supabase, updated);
-    await supabase.from('subscription_events').insert({
-      user_id: userId,
-      provider: 'stripe',
-      event_type:
-        product === 'coaching' ? 'coaching_pending_cancel_scheduled' : 'pending_cancel_scheduled',
-      provider_event_id: null,
-      payload: {
-        provider_subscription_id: updated.id,
-        product,
-        pending_cancel_effective_at: new Date(updated.current_period_end * 1000).toISOString(),
-      },
-      processing_status: 'processed',
-      processed_at: new Date().toISOString(),
-      livemode: updated.livemode,
-    });
+    const updated = await cancelStripeSubscriptionWithScheduleRelease(
+      { supabase, stripe, userId, product },
+      current,
+    );
 
     return {
       statusCode: 200,

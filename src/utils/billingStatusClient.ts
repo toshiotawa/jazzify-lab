@@ -396,7 +396,7 @@ export function applyOptimisticBillingAfterResume(
   return normalizeBillingStatusPayload({
     ...shared,
 
-    status: 'active',
+    status: current.status === 'trial' ? 'trial' : 'active',
 
     entitlement_state: 'active',
   });

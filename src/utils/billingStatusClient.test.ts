@@ -315,4 +315,20 @@ describe('normalizeBillingStatusPayload', () => {
 
     expect(optimistic?.can_change_plan).toBe(true);
   });
+
+  it('keeps trial status after optimistic resume from cancelled grace', () => {
+    const trialGrace = normalizeBillingStatusPayload({
+      provider: 'stripe',
+      status: 'trial',
+      entitlement_state: 'cancelled_but_active_until_end',
+      plan_code: 'core_monthly',
+      trial_used: false,
+      current_period_ends_at: '2027-06-12T05:30:46.000000Z',
+    });
+
+    const optimistic = applyOptimisticBillingAfterResume(trialGrace, false);
+
+    expect(optimistic?.status).toBe('trial');
+    expect(optimistic?.entitlement_state).toBe('active');
+  });
 });
