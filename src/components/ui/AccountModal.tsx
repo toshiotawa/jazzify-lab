@@ -609,6 +609,15 @@ const AccountPage: React.FC = () => {
     japanStripeEligible &&
     billingPayload?.can_start_coaching === true;
 
+  const showCoachingSection = Boolean(
+    billingPayload &&
+      (billingPayload.coaching_subscription ||
+        (coachingCheckoutEnabled &&
+          !isIOSWebView() &&
+          billingCurrency === 'JPY' &&
+          japanStripeEligible)),
+  );
+
   /** フリー・期限切れでは次回更新日・請求額を出さない（DBに period 残存していても） */
 
   const showBillingSchedule =
@@ -1471,9 +1480,7 @@ const AccountPage: React.FC = () => {
                     </div>
                   )}
 
-                  {billingPayload &&
-                    (billingPayload.coaching_subscription ||
-                      (!isIOSWebView() && billingCurrency === 'JPY' && japanStripeEligible)) && (
+                  {showCoachingSection && billingPayload && (
                       <div className="bg-emerald-900/20 rounded-lg p-3 border border-emerald-700/30 mt-2 space-y-2">
                         <p className="text-sm text-emerald-200 font-semibold mb-1">
                           {isEnglishCopy ? 'Personal coaching' : '個別コーチング'}
@@ -1634,13 +1641,9 @@ const AccountPage: React.FC = () => {
                               </button>
                             ) : (
                               <p className="text-xs text-amber-300">
-                                {coachingCheckoutEnabled
-                                  ? isEnglishCopy
-                                    ? 'Coaching applications are available only for eligible JP Stripe billing outside iOS WebView.'
-                                    : '個別コーチングの申込は、対象の国内Stripe課金かつiOS WebView外でのみ利用できます。'
-                                  : isEnglishCopy
-                                    ? 'Coaching applications are being prepared.'
-                                    : '個別コーチングの申込受付は準備中です。'}
+                                {isEnglishCopy
+                                  ? 'Coaching applications are available only for active eligible JP Premium subscriptions outside iOS WebView.'
+                                  : '個別コーチングの申込は、有効な国内Premium契約かつiOS WebView外でのみ利用できます。'}
                               </p>
                             )}
                           </>
