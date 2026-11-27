@@ -24,14 +24,14 @@ export interface TokushohoPageCopy {
 
 const WEB_TOKUSHOHO_JA: TokushohoPageCopy = {
   pageTitle: '特定商取引法に基づく表記（ウェブ版）',
-  subtitle: 'Lemon Squeezy を利用したウェブサイトからのお申込みに適用されます。',
+  subtitle: 'Stripe または Lemon Squeezy を利用したウェブサイトからのお申込みに適用されます。',
   supplementalHeading: '補足情報',
   backButtonLabel: '← 戻る',
   backButtonAria: '前のページに戻る',
   seo: {
     title: '特定商取引法に基づく表記（ウェブ版）— Jazzify',
     description:
-      'Jazzify ウェブ版（Lemon Squeezy 決済）の特定商取引法に基づく表記。事業者情報、価格、支払方法、解約条件などを掲載しています。',
+      'Jazzify ウェブ版（Stripe / Lemon Squeezy 決済）の特定商取引法に基づく表記。事業者情報、価格、支払方法、解約条件などを掲載しています。',
   },
   entries: [
     { label: '事業者', value: '合同会社KindWords' },
@@ -53,7 +53,7 @@ const WEB_TOKUSHOHO_JA: TokushohoPageCopy = {
     },
     {
       label: '支払方法',
-      value: 'クレジットカード等による決済（Lemon Squeezyを利用した自動継続課金）',
+      value: 'クレジットカード等による決済（Stripe または Lemon Squeezy を利用した自動継続課金）',
     },
     {
       label: '支払時期',
@@ -94,14 +94,14 @@ const WEB_TOKUSHOHO_JA: TokushohoPageCopy = {
 
 const WEB_TOKUSHOHO_EN: TokushohoPageCopy = {
   pageTitle: 'Legal Notice (Specified Commercial Transactions Act) — Web',
-  subtitle: 'Applies to subscriptions purchased through the Jazzify website via Lemon Squeezy.',
+  subtitle: 'Applies to subscriptions purchased through the Jazzify website via Stripe or Lemon Squeezy.',
   supplementalHeading: 'Additional information',
   backButtonLabel: '← Back',
   backButtonAria: 'Go back to the previous page',
   seo: {
     title: 'Legal Notice (Web) — Jazzify',
     description:
-      'Legal notice for Jazzify web subscriptions (Lemon Squeezy). Seller information, pricing in JPY, payment methods, cancellation, and delivery terms.',
+      'Legal notice for Jazzify web subscriptions (Stripe / Lemon Squeezy). Seller information, pricing, payment methods, cancellation, and delivery terms.',
   },
   entries: [
     { label: 'Seller', value: 'KindWords LLC (Godo Kaisha KindWords)' },
@@ -126,7 +126,7 @@ const WEB_TOKUSHOHO_EN: TokushohoPageCopy = {
     },
     {
       label: 'Payment method',
-      value: 'Credit card and other methods via Lemon Squeezy recurring billing.',
+      value: 'Credit card and other methods via Stripe or Lemon Squeezy recurring billing.',
     },
     {
       label: 'Payment timing',
@@ -168,7 +168,7 @@ const WEB_TOKUSHOHO_EN: TokushohoPageCopy = {
 const IOS_TOKUSHOHO_JA: TokushohoPageCopy = {
   pageTitle: '特定商取引法に基づく表記（iOSアプリ版）',
   subtitle:
-    'App Store 経由のアプリ内課金によるお申込みに関する情報です。ウェブ版（Lemon Squeezy）でのお申込みは、別途「特定商取引法に基づく表記（ウェブ版）」をご確認ください。',
+    'App Store 経由のアプリ内課金によるお申込みに関する情報です。ウェブ版（Stripe / Lemon Squeezy）でのお申込みは、別途「特定商取引法に基づく表記（ウェブ版）」をご確認ください。',
   supplementalHeading: '補足情報',
   backButtonLabel: '← 戻る',
   backButtonAria: '前のページに戻る',
@@ -229,7 +229,7 @@ const IOS_TOKUSHOHO_JA: TokushohoPageCopy = {
 const IOS_TOKUSHOHO_EN: TokushohoPageCopy = {
   pageTitle: 'Legal Notice (Specified Commercial Transactions Act) — iOS App',
   subtitle:
-    'Information for subscriptions purchased through the App Store (In-App Purchase). For web subscriptions via Lemon Squeezy, see the Web Legal Notice.',
+    'Information for subscriptions purchased through the App Store (In-App Purchase). For web subscriptions via Stripe or Lemon Squeezy, see the Web Legal Notice.',
   supplementalHeading: 'Additional information',
   backButtonLabel: '← Back',
   backButtonAria: 'Go back to the previous page',

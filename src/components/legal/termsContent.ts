@@ -82,7 +82,7 @@ const webTermsJa: TermsArticle[] = [
     id: 'payment',
     title: '第7条（支払方法、更新、解約）',
     paragraphs: [
-      'プレミアムプランの支払は、Lemon Squeezyその他当社指定の決済事業者を通じて行うものとします。',
+      'プレミアムプランの支払は、Stripe、Lemon Squeezyその他当社指定の決済事業者を通じて行うものとします。',
       'トライアルが付与された場合、トライアル終了日の翌日に初回の利用料金が課金され、その後は申込み時に選択したプラン（月額プランは1か月単位、年額プランは1年単位）で自動更新されます。トライアル期間中に当社所定の方法で解約手続を完了した場合、料金は発生しません。',
       'トライアルが付与されない場合、利用者が申込みを完了した日を起算日として、申込み時に選択したプラン（月額プランは1か月単位、年額プランは1年単位）で自動更新され、初回の利用料金が課金されます。',
       '利用者が次回更新日前までに当社所定の方法で解約手続を完了しない限り、同一条件で自動更新されます。',
@@ -243,7 +243,7 @@ const webTermsEn: TermsArticle[] = [
     id: 'payment',
     title: 'Article 7 (Payment, Renewal, and Cancellation)',
     paragraphs: [
-      'Payment for the Premium Plan shall be made through Lemon Squeezy or other payment processors designated by the Company.',
+      'Payment for the Premium Plan shall be made through Stripe, Lemon Squeezy, or other payment processors designated by the Company.',
       'If a Trial is granted, the first fee is charged on the day after the Trial ends, and the plan renews automatically according to the plan selected at signup (monthly plans renew every month; annual plans renew every year). If the user completes cancellation in the manner prescribed by the Company during the Trial, no fees will be charged.',
       'If no Trial is granted, the Premium Plan renews automatically from the day the user completes subscription according to the plan selected at signup (monthly plans renew every month; annual plans renew every year), and the first fee is charged accordingly.',
       'Unless the user completes cancellation in the manner prescribed by the Company before the next renewal date, the plan renews under the same conditions.',
@@ -670,7 +670,7 @@ const iosTermsEn: TermsArticle[] = [
 const webHighlightsJa: string[] = [
   '本サービスはジャズ学習支援を目的としたウェブサービスです。',
   '有料プランはプレミアムのみで、月額3,980円（税込）または年額34,800円（税込）。初回利用者に限り7日間の無料トライアルが付与される場合があります（対象外となる場合があります）。',
-  'お支払いはLemon Squeezy等を通じて行い、トライアル終了後は月額プランは1か月単位、年額プランは1年単位で自動更新されます。解約は次回更新前までに所定の手続きが必要です。',
+  'お支払いはStripeまたはLemon Squeezy等を通じて行い、トライアル終了後は月額プランは1か月単位、年額プランは1年単位で自動更新されます。解約は次回更新前までに所定の手続きが必要です。',
   '実況配信・動画投稿は原則として許可されています（第9条）。有料コンテンツを含む配信も可能です。',
   '禁止事項、免責、個人情報の取扱いは本規約およびプライバシーポリシーに従います。',
 ];
@@ -678,7 +678,7 @@ const webHighlightsJa: string[] = [
 const webHighlightsEn: string[] = [
   'The Service is a web-based platform for jazz learning support.',
   'The only paid plan is Premium at ¥3,980 per month (tax included) or ¥34,800 per year (tax included) for Japan, or $24.99 per month or $199 per year for English/global users. Eligible first-time subscribers may receive a seven-day free trial.',
-  'Payment is processed through Lemon Squeezy or other designated processors; after any trial, monthly plans renew every month and annual plans renew every year. Cancel before the next renewal as instructed.',
+  'Payment is processed through Stripe, Lemon Squeezy, or other designated processors; after any trial, monthly plans renew every month and annual plans renew every year. Cancel before the next renewal as instructed.',
   'Live streaming and video uploads are generally permitted (Article 9), including Premium content.',
   'Prohibited conduct, disclaimers, and personal data handling are governed by these Terms and the Privacy Policy.',
 ];

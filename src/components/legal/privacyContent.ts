@@ -77,7 +77,7 @@ const webPrivacyJa: PrivacyPageCopy = {
         '当社は、本サービスの運営にあたり、以下の外部事業者を利用することがあります。',
       ],
       bullets: [
-        'Lemon Squeezy：決済、購入管理、サブスクリプション管理',
+        'Stripe / Lemon Squeezy：決済、購入管理、サブスクリプション管理',
         'Supabase：データベース、認証、バックエンド機能',
         'Netlify：ホスティング、配信基盤',
       ],
@@ -198,7 +198,7 @@ const webPrivacyEn: PrivacyPageCopy = {
         'We may use the following external providers in operating the Service.',
       ],
       bullets: [
-        'Lemon Squeezy: payments, purchase management, subscription management',
+        'Stripe / Lemon Squeezy: payments, purchase management, subscription management',
         'Supabase: database, authentication, backend',
         'Netlify: hosting and delivery infrastructure',
       ],
