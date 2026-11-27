@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { evaluateAccountDeletionBlock } from "../_shared/deleteAccountPolicy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,20 +43,31 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Check subscription status - block if active
-    const { data: subscription } = await supabase
+    // Check subscription and coaching status - block if active (fail-closed on query error)
+    const { data: subscription, error: subscriptionError } = await supabase
       .from("subscriptions")
       .select("status, current_period_ends_at, provider, entitlement_state")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (subscription && subscription.entitlement_state !== "expired") {
-      const providerLabel = subscription.provider === "apple" ? "Apple" : "Lemon Squeezy";
-      return new Response(JSON.stringify({
-        error: `Active subscription exists via ${providerLabel}. Please cancel first.`,
-        provider: subscription.provider,
-      }), {
-        status: 400,
+    if (subscriptionError) {
+      return new Response(JSON.stringify({ error: "Failed to verify subscription status" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: coachingSubscription, error: coachingSubError } = await supabase
+      .from("coaching_subscriptions")
+      .select("provider, entitlement_state")
+      .eq("user_id", user.id)
+      .neq("entitlement_state", "expired")
+      .limit(1)
+      .maybeSingle();
+
+    if (coachingSubError) {
+      return new Response(JSON.stringify({ error: "Failed to verify coaching subscription status" }), {
+        status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -65,19 +77,19 @@ Deno.serve(async (req: Request) => {
       .from("profiles")
       .select("rank, email, lemon_subscription_status")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (profile?.rank && profile.rank !== "free") {
-      const isLemonActive = ["active", "on_trial", "past_due"].includes(profile.lemon_subscription_status ?? "");
-      if (isLemonActive) {
-        return new Response(JSON.stringify({
-          error: "Active Lemon subscription. Cancel via web portal first.",
-          provider: "lemon",
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    const deletionBlock = evaluateAccountDeletionBlock({
+      subscription: subscription ?? null,
+      coachingSubscription: coachingSubscription ?? null,
+      profile: profile ?? null,
+    });
+
+    if (deletionBlock) {
+      return new Response(JSON.stringify(deletionBlock), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Proceed with deletion — admin.signOut expects the user's JWT, not user id (see Supabase JS reference)
@@ -89,6 +101,7 @@ Deno.serve(async (req: Request) => {
     await supabase.from("practice_diaries").delete().eq("user_id", user.id);
     await supabase.from("diary_comments").delete().eq("user_id", user.id);
     await supabase.from("diary_likes").delete().eq("user_id", user.id);
+    await supabase.from("coaching_subscriptions").delete().eq("user_id", user.id);
     await supabase.from("subscriptions").delete().eq("user_id", user.id);
     await supabase.from("subscription_events").delete().eq("user_id", user.id);
 
