@@ -168,20 +168,38 @@ const normalizeInterval = (interval: string | null | undefined): 'month' | 'year
 export const isActiveEntitlementState = (entitlementState: string | null | undefined): boolean =>
   entitlementState != null && ACTIVE_ENTITLEMENT_STATES.has(entitlementState);
 
+const JAPAN_COUNTRY_CODES = new Set(['JP', 'JPN', 'JAPAN']);
+
+const isJapanCountryCode = (country: string | null | undefined): boolean | null => {
+  const normalized = country?.trim().toUpperCase();
+  if (!normalized) return null;
+  return JAPAN_COUNTRY_CODES.has(normalized);
+};
+
 export interface JapanStripeEligibilityInput {
   country?: string | null;
+  geoCountry?: string | null;
   billing_currency?: string | null;
   preferred_locale?: string | null;
 }
 
 export const isJapanStripeEligible = (profile: JapanStripeEligibilityInput): boolean => {
+  if (profile.preferred_locale === 'en') return false;
   if (profile.billing_currency === 'USD') return false;
-  if (profile.billing_currency === 'JPY') return true;
-  const country = profile.country?.trim().toUpperCase() ?? null;
-  if (country) {
-    return country === 'JP' || country === 'JPN' || country === 'JAPAN';
-  }
-  return profile.preferred_locale !== 'en';
+
+  const profileCountryIsJapan = isJapanCountryCode(profile.country);
+  if (profileCountryIsJapan === false) return false;
+
+  const geoCountryIsJapan =
+    profileCountryIsJapan === null ? isJapanCountryCode(profile.geoCountry) : null;
+  if (geoCountryIsJapan === false) return false;
+
+  return (
+    profileCountryIsJapan === true ||
+    geoCountryIsJapan === true ||
+    profile.billing_currency === 'JPY' ||
+    profile.preferred_locale === 'ja'
+  );
 };
 
 export interface StripeCoachingSubscriptionRow {

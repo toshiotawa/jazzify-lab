@@ -597,9 +597,11 @@ const AccountPage: React.FC = () => {
   const coachingCheckoutEnabled = import.meta.env.VITE_ENABLE_STRIPE_COACHING_CHECKOUT === 'true';
 
   const japanStripeEligible = isJapanStripeEligible({
-    country: profile?.country ?? geoCountry ?? null,
+    country: profile?.country ?? null,
+    geoCountry: geoCountry ?? null,
     billing_currency: profile?.billing_currency ?? null,
     preferred_locale: profile?.preferred_locale ?? null,
+    isEnglishCopy,
   });
 
   const showCoachingCheckoutButton =

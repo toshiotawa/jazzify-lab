@@ -18,7 +18,12 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 
-import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
+import {
+  isJapanStripeEligible,
+  isStripePremiumCheckoutEnabled,
+  resolveDisplayBillingCurrency,
+  type BillingCurrency,
+} from '@/utils/billingCurrency';
 
 import {
   PREMIUM_PRICING_JPY,
@@ -26,8 +31,6 @@ import {
   formatAmountForCurrency,
   formatUsdAmount,
 } from '@/utils/premiumPricing';
-
-import type { BillingCurrency } from '@/utils/billingCurrency';
 
 type PlanKey = 'free' | 'premium';
 
@@ -261,14 +264,27 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     );
   }
 
+  const useStripeCheckout =
+    isStripePremiumCheckoutEnabled() &&
+    billingCurrency === 'JPY' &&
+    isJapanStripeEligible({
+      country: profile?.country ?? null,
+      geoCountry: geoCountry ?? null,
+      billing_currency: profile?.billing_currency ?? null,
+      preferred_locale: profile?.preferred_locale ?? null,
+      isEnglishCopy,
+    });
+
+  const jpyProviderLabel = useStripeCheckout ? 'Stripe' : 'Lemon Squeezy';
+
   const billingDescription =
     billingCurrency === 'USD'
       ? isEnglishCopy
         ? `Eligible users get a 7-day free trial, then Premium is billed at ${formatUsdAmount(PREMIUM_PRICING_USD.monthly)}/month or ${formatUsdAmount(PREMIUM_PRICING_USD.yearly)}/year via Lemon Squeezy. Billing currency is USD.`
         : `初回は7日間の無料トライアルのあと、月額${formatUsdAmount(PREMIUM_PRICING_USD.monthly)}または年額${formatUsdAmount(PREMIUM_PRICING_USD.yearly)}が Lemon Squeezy 経由で課金されます。`
       : isEnglishCopy
-        ? `Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via Stripe. Billing currency is JPY.`
-        : '初回は7日間の無料トライアルのあと、月額3,980円（税込）または年額34,800円（税込）が Stripe 経由で課金されます。';
+        ? `Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via ${jpyProviderLabel}. Billing currency is JPY.`
+        : `初回は7日間の無料トライアルのあと、月額3,980円（税込）または年額34,800円（税込）が ${jpyProviderLabel} 経由で課金されます。`;
 
   const handlePlanSelect = async (plan: 'premium') => {
     if (!profile) {

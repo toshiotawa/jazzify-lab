@@ -4,6 +4,8 @@ import type Stripe from 'stripe';
 
 import { resolveSiteUrl } from './utils/resolveSiteUrl';
 
+import { readGeoCountryFromHeaders } from './lib/lemonCheckoutDefaults';
+
 import {
   authenticateRequest,
   billingCorsHeaders,
@@ -148,7 +150,18 @@ export const handler: Handler = async (event, _context) => {
       };
     }
 
-    if (!isJapanStripeEligible(profile)) {
+    if (productKind === 'premium' && process.env.STRIPE_ENABLE_PREMIUM_CHECKOUT === 'false') {
+      return {
+        statusCode: 503,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({
+          error: 'Stripe checkout is temporarily disabled. Please use the standard checkout.',
+        }),
+      };
+    }
+
+    const geoCountry = readGeoCountryFromHeaders(event.headers);
+    if (!isJapanStripeEligible({ ...profile, geoCountry })) {
       return {
         statusCode: 400,
         headers: billingCorsHeaders,

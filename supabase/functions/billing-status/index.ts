@@ -125,18 +125,29 @@ function isPaidPremiumForCoaching(
   return status === 'active' && entitlementState === 'active' && !pendingCancelScheduled;
 }
 
+const JAPAN_COUNTRY_CODES = new Set(['JP', 'JPN', 'JAPAN']);
+
+function isJapanCountryCode(country: unknown): boolean | null {
+  if (typeof country !== 'string') return null;
+  const normalized = country.trim().toUpperCase();
+  if (!normalized) return null;
+  return JAPAN_COUNTRY_CODES.has(normalized);
+}
+
 function isJapanStripeEligible(profile: {
   country?: string | null;
   billing_currency?: string | null;
   preferred_locale?: string | null;
 }): boolean {
+  if (profile.preferred_locale === 'en') return false;
   if (profile.billing_currency === 'USD') return false;
-  if (profile.billing_currency === 'JPY') return true;
-  const country = typeof profile.country === 'string' ? profile.country.trim().toUpperCase() : null;
-  if (country) {
-    return country === 'JP' || country === 'JPN' || country === 'JAPAN';
-  }
-  return profile.preferred_locale !== 'en';
+  const countryIsJapan = isJapanCountryCode(profile.country);
+  if (countryIsJapan === false) return false;
+  return (
+    countryIsJapan === true ||
+    profile.billing_currency === 'JPY' ||
+    profile.preferred_locale === 'ja'
+  );
 }
 
 function buildCoachingBillingStatus(row: Record<string, unknown> | null): CoachingBillingStatus {

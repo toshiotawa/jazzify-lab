@@ -8,7 +8,11 @@ import { useAuthStore } from '@/stores/authStore';
 
 import { PREMIUM_PRICING_JPY, PREMIUM_PRICING_USD, formatUsdAmount } from '@/utils/premiumPricing';
 
-import { isJapanStripeEligible, resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
+import {
+  isJapanStripeEligible,
+  isStripePremiumCheckoutEnabled,
+  resolveDisplayBillingCurrency,
+} from '@/utils/billingCurrency';
 import { useGeoStore } from '@/stores/geoStore';
 
 import { trackEvent } from '@/utils/analytics/ga';
@@ -208,11 +212,14 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
     billingPayload?.trial_used === true;
 
   const useStripeCheckout =
+    isStripePremiumCheckoutEnabled() &&
     billingCurrency === 'JPY' &&
     isJapanStripeEligible({
-      country: profile?.country ?? geoCountry ?? null,
+      country: profile?.country ?? null,
+      geoCountry: geoCountry ?? null,
       billing_currency: profile?.billing_currency ?? null,
       preferred_locale: profile?.preferred_locale ?? null,
+      isEnglishCopy,
     });
 
   const copy = resolveWebPaywallCopy(
