@@ -205,7 +205,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const userEmail = auth.data.user.email ?? auth.data.user.user_metadata?.email ?? '';
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('email, rank, lemon_customer_id, lemon_trial_used, country, preferred_locale, billing_currency')
+      .select('email, rank, lemon_customer_id, lemon_trial_used, stripe_trial_start, country, preferred_locale, billing_currency')
       .eq('id', userId)
       .single();
 
@@ -237,8 +237,18 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       await supabase.from('profiles').update({ billing_currency: billingCurrency }).eq('id', userId);
     }
 
+    const { data: existingSubscription } = await supabase
+      .from('subscriptions')
+      .select('trial_used')
+      .eq('user_id', userId)
+      .maybeSingle();
+
     let trial = true;
-    if (profile.lemon_trial_used === true) {
+    if (
+      profile.lemon_trial_used === true ||
+      profile.stripe_trial_start != null ||
+      existingSubscription?.trial_used === true
+    ) {
       trial = false;
     } else {
       const existingCustomerId = profile.lemon_customer_id

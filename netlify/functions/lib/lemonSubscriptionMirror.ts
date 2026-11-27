@@ -26,11 +26,31 @@ export interface LemonSubscriptionObjectAttrs {
 }
 
 export interface ExistingSubscriptionSnapshot {
+  provider?: string | null;
+  entitlement_state?: string | null;
   plan_code: string | null;
   trial_used: boolean;
   provider_updated_at: string | null;
   pending_cancel_status?: string | null;
   last_pending_cancel_applied_at?: string | null;
+}
+
+const ACTIVE_CROSS_PROVIDER_ENTITLEMENT_STATES = new Set([
+  'active',
+  'payment_issue_with_access',
+  'cancelled_but_active_until_end',
+]);
+
+export function shouldSkipLemonMirrorForExistingProvider(
+  existing: Pick<ExistingSubscriptionSnapshot, 'provider' | 'entitlement_state'> | null,
+): boolean {
+  if (!existing?.provider || existing.provider === 'lemon' || existing.provider === 'none') {
+    return false;
+  }
+  return (
+    existing.entitlement_state != null &&
+    ACTIVE_CROSS_PROVIDER_ENTITLEMENT_STATES.has(existing.entitlement_state)
+  );
 }
 
 export interface SubscriptionMirrorContext {

@@ -23,6 +23,7 @@ import {
 import { rankForSubscription } from './lib/lemonSubscriptionMapping';
 import {
   buildSubscriptionMirror,
+  shouldSkipLemonMirrorForExistingProvider,
   type ExistingSubscriptionSnapshot,
   type LemonSubscriptionObjectAttrs,
 } from './lib/lemonSubscriptionMirror';
@@ -189,11 +190,15 @@ const fetchExistingSnapshot = async (
 ): Promise<ExistingSubscriptionSnapshot | null> => {
   const { data } = await supabase
     .from('subscriptions')
-    .select('plan_code, trial_used, provider_updated_at, pending_cancel_status, last_pending_cancel_applied_at')
+    .select(
+      'provider, entitlement_state, plan_code, trial_used, provider_updated_at, pending_cancel_status, last_pending_cancel_applied_at',
+    )
     .eq('user_id', userId)
     .maybeSingle();
   if (!data) return null;
   return {
+    provider: typeof data.provider === 'string' ? data.provider : null,
+    entitlement_state: typeof data.entitlement_state === 'string' ? data.entitlement_state : null,
     plan_code: typeof data.plan_code === 'string' ? data.plan_code : null,
     trial_used: data.trial_used === true,
     provider_updated_at:
@@ -226,6 +231,15 @@ const mirrorSubscriptionEntitlement = async (
   const { yearlyVariantIds, monthlyVariantIds } = getVariantIdLists();
   const variantPlanCode = planCodeForLemonVariant(source.attrs.variant_id, yearlyVariantIds, monthlyVariantIds);
   const existing = await fetchExistingSnapshot(supabase, userId);
+
+  if (shouldSkipLemonMirrorForExistingProvider(existing)) {
+    await insertAuditEvent(supabase, userId, 'active_different_provider_exists', providerEventId, {
+      original_event: eventName,
+      existing_provider: existing?.provider ?? null,
+      existing_entitlement_state: existing?.entitlement_state ?? null,
+    });
+    return { received: true, skipped: 'active_different_provider_exists' };
+  }
 
   if (
     shouldBlockCancellationMirror(
@@ -411,16 +425,6 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     // Refund events should not be treated as entitlement truth.
     // Entitlement should be derived from subscription status, not refund status.
     if (eventName === 'order_refunded') {
-      await supabase
-        .from('subscriptions')
-        .update({
-          status: 'expired',
-          entitlement_state: 'expired',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
-      await supabase.from('profiles').update({ rank: 'free' }).eq('id', userId);
-
       const refundedAmount =
         typeof attrs.refunded_amount === 'number'
           ? attrs.refunded_amount
@@ -428,6 +432,27 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
             ? attrs.refunded
             : null;
       await handleOrderRefundedBillingInvoice(supabase, providerEventId, refundedAmount);
+
+      const existing = await fetchExistingSnapshot(supabase, userId);
+      if (shouldSkipLemonMirrorForExistingProvider(existing)) {
+        await insertAuditEvent(supabase, userId, 'active_different_provider_exists', providerEventId, {
+          original_event: eventName,
+          existing_provider: existing?.provider ?? null,
+          existing_entitlement_state: existing?.entitlement_state ?? null,
+        });
+        return ok({ received: true, skipped: 'active_different_provider_exists' });
+      }
+
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'expired',
+          entitlement_state: 'expired',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .eq('provider', 'lemon');
+      await supabase.from('profiles').update({ rank: 'free' }).eq('id', userId);
 
       return ok({ received: true, status: 'expired' });
     }

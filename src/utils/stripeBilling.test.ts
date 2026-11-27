@@ -9,7 +9,12 @@ import {
   resolveExpectedStripeLivemode,
   resolvePendingPlanFromScheduleObject,
 } from '../../netlify/functions/lib/stripeBilling';
+import { shouldSkipLemonMirrorForExistingProvider } from '../../netlify/functions/lib/lemonSubscriptionMirror';
 import { scheduleStripePlanChange } from '../../netlify/functions/stripeChangePlan';
+import {
+  isJapanStripeEligible as isClientJapanStripeEligible,
+  isStripePremiumCheckoutEnabled,
+} from '@/utils/billingCurrency';
 
 describe('stripe billing helpers', () => {
   const originalEnv = { ...process.env };
@@ -62,13 +67,80 @@ describe('stripe billing helpers', () => {
     expect(() => getStripeClient()).toThrow(/livemode/);
   });
 
-  it('resolves Japan Stripe eligibility from profile fields', () => {
+  it('resolves Japan Stripe eligibility strictly and keeps overseas/unknown users on Lemon', () => {
     expect(isJapanStripeEligible({ billing_currency: 'JPY' })).toBe(true);
     expect(isJapanStripeEligible({ billing_currency: 'USD' })).toBe(false);
-    expect(isJapanStripeEligible({ country: 'JP', preferred_locale: 'en' })).toBe(true);
+    expect(isJapanStripeEligible({ country: 'JP', preferred_locale: 'ja' })).toBe(true);
+    expect(isJapanStripeEligible({ country: 'JP', preferred_locale: 'en' })).toBe(false);
     expect(isJapanStripeEligible({ country: 'US', preferred_locale: 'ja' })).toBe(false);
+    expect(isJapanStripeEligible({ country: 'US', billing_currency: 'JPY' })).toBe(false);
+    expect(isJapanStripeEligible({ geoCountry: 'US', billing_currency: 'JPY' })).toBe(false);
+    expect(isJapanStripeEligible({ geoCountry: 'JP' })).toBe(true);
+    expect(isJapanStripeEligible({ country: 'JP', geoCountry: 'US' })).toBe(true);
     expect(isJapanStripeEligible({ preferred_locale: 'ja' })).toBe(true);
     expect(isJapanStripeEligible({ preferred_locale: 'en' })).toBe(false);
+    expect(isJapanStripeEligible({})).toBe(false);
+
+    expect(
+      isClientJapanStripeEligible({
+        country: 'JP',
+        billing_currency: 'JPY',
+        preferred_locale: 'ja',
+        isEnglishCopy: true,
+      }),
+    ).toBe(false);
+    expect(
+      isClientJapanStripeEligible({
+        country: 'JP',
+        billing_currency: 'JPY',
+        preferred_locale: 'ja',
+        isEnglishCopy: false,
+      }),
+    ).toBe(true);
+    expect(isClientJapanStripeEligible({})).toBe(false);
+    expect(isStripePremiumCheckoutEnabled(undefined)).toBe(false);
+    expect(isStripePremiumCheckoutEnabled('false')).toBe(false);
+    expect(isStripePremiumCheckoutEnabled('true')).toBe(true);
+  });
+
+  it('skips Lemon webhook mirroring when an active non-Lemon subscription exists', () => {
+    expect(
+      shouldSkipLemonMirrorForExistingProvider({
+        provider: 'stripe',
+        entitlement_state: 'active',
+      }),
+    ).toBe(true);
+    expect(
+      shouldSkipLemonMirrorForExistingProvider({
+        provider: 'stripe',
+        entitlement_state: 'cancelled_but_active_until_end',
+      }),
+    ).toBe(true);
+    expect(
+      shouldSkipLemonMirrorForExistingProvider({
+        provider: 'apple',
+        entitlement_state: 'payment_issue_with_access',
+      }),
+    ).toBe(true);
+    expect(
+      shouldSkipLemonMirrorForExistingProvider({
+        provider: 'stripe',
+        entitlement_state: 'expired',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSkipLemonMirrorForExistingProvider({
+        provider: 'lemon',
+        entitlement_state: 'active',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSkipLemonMirrorForExistingProvider({
+        provider: 'none',
+        entitlement_state: 'active',
+      }),
+    ).toBe(false);
+    expect(shouldSkipLemonMirrorForExistingProvider(null)).toBe(false);
   });
 
   it('rejects invalid billing product JSON instead of defaulting to premium', () => {
