@@ -67,13 +67,25 @@ struct Subscription: Codable, Sendable {
     }
 }
 
-enum BillingProvider: String, Codable, Sendable {
+enum BillingProvider: String, Codable, Equatable, Sendable {
     case apple
     case lemon
+    case stripe
     case none
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        self = BillingProvider(rawValue: raw) ?? .unknown
+    }
+
+    var isWebProvider: Bool {
+        self == .lemon || self == .stripe
+    }
 }
 
-enum SubscriptionStatus: String, Codable, Sendable {
+enum SubscriptionStatus: String, Codable, Equatable, Sendable {
     case trial
     case active
     case grace
@@ -83,7 +95,7 @@ enum SubscriptionStatus: String, Codable, Sendable {
     case canceled
 }
 
-enum EntitlementState: String, Codable, Sendable {
+enum EntitlementState: String, Codable, Equatable, Sendable {
     case active
     case paymentIssueWithAccess = "payment_issue_with_access"
     case paymentIssueNoAccess = "payment_issue_no_access"
@@ -91,13 +103,29 @@ enum EntitlementState: String, Codable, Sendable {
     case expired
 }
 
-struct BillingStatusResponse: Codable, Sendable {
+struct CoachingBillingStatus: Codable, Equatable, Sendable {
+    let provider: BillingProvider
+    let status: SubscriptionStatus
+    let entitlementState: EntitlementState
+    let currentPeriodEndsAt: Date?
+    let pendingCancelEffectiveAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case provider, status
+        case entitlementState = "entitlement_state"
+        case currentPeriodEndsAt = "current_period_ends_at"
+        case pendingCancelEffectiveAt = "pending_cancel_effective_at"
+    }
+}
+
+struct BillingStatusResponse: Codable, Equatable, Sendable {
     let provider: BillingProvider
     let status: SubscriptionStatus
     let entitlementState: EntitlementState
     let planCode: String
     let trialUsed: Bool
     let currentPeriodEndsAt: Date?
+    let coachingSubscription: CoachingBillingStatus?
 
     enum CodingKeys: String, CodingKey {
         case provider, status
@@ -105,5 +133,57 @@ struct BillingStatusResponse: Codable, Sendable {
         case planCode = "plan_code"
         case trialUsed = "trial_used"
         case currentPeriodEndsAt = "current_period_ends_at"
+        case coachingSubscription = "coaching_subscription"
+    }
+
+    init(
+        provider: BillingProvider,
+        status: SubscriptionStatus,
+        entitlementState: EntitlementState,
+        planCode: String,
+        trialUsed: Bool,
+        currentPeriodEndsAt: Date?,
+        coachingSubscription: CoachingBillingStatus? = nil
+    ) {
+        self.provider = provider
+        self.status = status
+        self.entitlementState = entitlementState
+        self.planCode = planCode
+        self.trialUsed = trialUsed
+        self.currentPeriodEndsAt = currentPeriodEndsAt
+        self.coachingSubscription = coachingSubscription
+    }
+
+    var canShowIAP: Bool {
+        guard provider.isWebProvider else { return true }
+        switch entitlementState {
+        case .expired, .paymentIssueNoAccess:
+            return true
+        case .active, .paymentIssueWithAccess, .cancelledButActiveUntilEnd:
+            return false
+        }
+    }
+
+    var canDeleteAccount: Bool {
+        guard entitlementState == .expired else { return false }
+        if let coaching = coachingSubscription, coaching.entitlementState != .expired {
+            return false
+        }
+        return true
+    }
+
+    var paymentIssueBannerKind: PaymentIssueBannerKind? {
+        if provider.isWebProvider && entitlementState == .paymentIssueWithAccess {
+            return .webWithAccess
+        }
+        if provider == .apple && entitlementState == .paymentIssueNoAccess {
+            return .appleNoAccess
+        }
+        if let coaching = coachingSubscription,
+           coaching.provider.isWebProvider,
+           coaching.entitlementState == .paymentIssueWithAccess {
+            return .webWithAccess
+        }
+        return nil
     }
 }

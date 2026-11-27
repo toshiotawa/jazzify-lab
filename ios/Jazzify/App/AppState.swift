@@ -500,19 +500,11 @@ final class AppState: ObservableObject {
     }
 
     var canShowIAP: Bool {
-        guard let billing = billingStatus else { return true }
-        if billing.provider != .lemon { return true }
-        switch billing.entitlementState {
-        case .expired, .paymentIssueNoAccess:
-            return true
-        case .active, .paymentIssueWithAccess, .cancelledButActiveUntilEnd:
-            return false
-        }
+        billingStatus?.canShowIAP ?? true
     }
 
     var canDeleteAccount: Bool {
-        guard let billing = billingStatus else { return true }
-        return billing.entitlementState == .expired
+        billingStatus?.canDeleteAccount ?? true
     }
 
     // MARK: - Plan display（機能ゲートは `isPremium` のみのため、ラベルも同一ソースに揃える）
@@ -529,16 +521,9 @@ final class AppState: ObservableObject {
         isPremium
     }
 
-    /// 支払い問題バナー（Lemon: 利用可 / Apple: 停止）
+    /// 支払い問題バナー（Web決済: 利用可 / Apple: 停止）
     var paymentIssueBannerKind: PaymentIssueBannerKind? {
-        guard let billing = billingStatus else { return nil }
-        if billing.provider == .lemon && billing.entitlementState == .paymentIssueWithAccess {
-            return .lemonWithAccess
-        }
-        if billing.provider == .apple && billing.entitlementState == .paymentIssueNoAccess {
-            return .appleNoAccess
-        }
-        return nil
+        billingStatus?.paymentIssueBannerKind
     }
 }
 

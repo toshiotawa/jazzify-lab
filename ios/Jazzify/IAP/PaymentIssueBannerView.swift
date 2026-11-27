@@ -1,7 +1,7 @@
 import SwiftUI
 
-enum PaymentIssueBannerKind {
-    case lemonWithAccess
+enum PaymentIssueBannerKind: Equatable, Sendable {
+    case webWithAccess
     case appleNoAccess
 }
 
@@ -11,9 +11,9 @@ struct PaymentIssueBannerView: View {
 
     private var message: String {
         switch (kind, locale) {
-        case (.lemonWithAccess, .ja):
+        case (.webWithAccess, .ja):
             return "お支払いに問題があります。現在は利用できます。支払い情報を更新してください。"
-        case (.lemonWithAccess, .en):
+        case (.webWithAccess, .en):
             return "There is an issue with your payment. You still have access. Please update your payment information."
         case (.appleNoAccess, .ja):
             return "お支払いに問題があります。現在ご利用を停止しています。支払い情報を更新してください。"
@@ -24,7 +24,7 @@ struct PaymentIssueBannerView: View {
 
     private var style: (border: Color, bg: Color, icon: Color) {
         switch kind {
-        case .lemonWithAccess:
+        case .webWithAccess:
             return (.orange.opacity(0.55), .orange.opacity(0.12), .orange)
         case .appleNoAccess:
             return (.red.opacity(0.55), .red.opacity(0.12), .red)

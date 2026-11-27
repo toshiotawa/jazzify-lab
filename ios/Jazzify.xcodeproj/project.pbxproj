@@ -503,6 +503,8 @@
 		69B05DF90077AEBCD32BB58E /* PestoModelInputsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */; };
 		0095BD48BE53E3FA30FEBC84 /* PestoDecimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */; };
 		ACF31B675780FD88AB949425 /* PestoNativeModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */; };
+		B2A3C4D5E6F708192A3B4C5D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */; };
+		B4A5C6D7E8F90A1B2C3D4E5F /* BillingStatusPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A4C5D6E7F8091A2B3C4D5E /* BillingStatusPolicyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1025,6 +1027,8 @@
 		892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoDecimatorTests.swift; sourceTree = "<group>"; };
 		7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoNativeModelTests.swift; sourceTree = "<group>"; };
 		400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JazzifyPestoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1A2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B3A4C5D6E7F8091A2B3C4D5E /* BillingStatusPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingStatusPolicyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1111,6 +1115,7 @@
 				B4665837C213B33E7EA39A7E /* Assets.xcassets */,
 				C6E97E7B4C255D270BD5BC8C /* Info.plist */,
 				20B499E74ABA90E85BD71290 /* Jazzify.entitlements */,
+				B1A2C3D4E5F60718293A4B5C /* PrivacyInfo.xcprivacy */,
 			);
 			path = Jazzify;
 			sourceTree = "<group>";
@@ -1479,6 +1484,7 @@
 				C5FB3F9361B5F6BFC8182394 /* ScreenRotationApplierTests.swift */,
 				83ED53FE93C0297F2122C1A5 /* ScreenRotationPreferencesTests.swift */,
 				5D549AE5505928B0D2E38776 /* SoftLandingFreeTierTests.swift */,
+				B3A4C5D6E7F8091A2B3C4D5E /* BillingStatusPolicyTests.swift */,
 				9D0B7737796079ADD0B4C12D /* SurvivalChordPadLayoutTests.swift */,
 				15A55E5198613BC8A3872FD4 /* SurvivalChordResolverTests.swift */,
 				158F92DBC08DC1AEE39005DA /* SurvivalCodeRunNativeEngineTests.swift */,
@@ -2193,6 +2199,7 @@
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
 				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
 				D7A1C4E82F6B9051A3C8D4E1 /* pitchplease in Resources */,
+				B2A3C4D5E6F708192A3B4C5D /* PrivacyInfo.xcprivacy in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
 				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
 			);
@@ -2324,6 +2331,7 @@
 				D445C6B27F34AA59575894A5 /* ScreenRotationApplierTests.swift in Sources */,
 				54454BB426D048A6614E6A2C /* ScreenRotationPreferencesTests.swift in Sources */,
 				9676166C37A4A0AF36F96766 /* SoftLandingFreeTierTests.swift in Sources */,
+				B4A5C6D7E8F90A1B2C3D4E5F /* BillingStatusPolicyTests.swift in Sources */,
 				7EA6F740185BF94A107352A8 /* SurvivalChordPadLayoutTests.swift in Sources */,
 				DC0C0130FB688A757A711CF9 /* SurvivalChordResolverTests.swift in Sources */,
 				A5E7FCB02BEF6E8C359C5422 /* SurvivalCodeRunNativeEngineTests.swift in Sources */,

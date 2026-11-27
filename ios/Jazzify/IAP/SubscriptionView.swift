@@ -144,8 +144,8 @@ struct SubscriptionView: View {
                                 .padding(.horizontal, 4)
                         }
                         if !appState.canShowIAP {
-                            lemonPathHeaderSection
-                            lemonActiveSection
+                            webSubscribedHeaderSection
+                            webSubscribedSection
                         } else if appState.isPremium {
                             activeSubscriptionSection
                         } else {
@@ -219,9 +219,9 @@ struct SubscriptionView: View {
         }
     }
 
-    // MARK: - Lemon Path Header (unchanged style)
+    // MARK: - Web-Subscribed Header (Lemon / Stripe)
 
-    private var lemonPathHeaderSection: some View {
+    private var webSubscribedHeaderSection: some View {
         VStack(spacing: 12) {
             Image(systemName: "crown.fill")
                 .font(.system(size: 48))
@@ -458,7 +458,7 @@ struct SubscriptionView: View {
         return formatter.string(from: date)
     }
 
-    private var lemonActiveSection: some View {
+    private var webSubscribedSection: some View {
         VStack(spacing: 12) {
             VStack(spacing: 8) {
                 HStack {
@@ -1006,9 +1006,11 @@ struct SubscriptionView: View {
         }
 
         if entry == .chapterComplete && !showIntroPaywallDetails {
-            return locale == .ja
-                ? "無料トライアルは利用済みです。購入時に年額\(displayPrice)が請求されます。"
-                : "Your free trial has already been used. You will be charged \(displayPrice)/year at purchase."
+            return SubscriptionCopy.chapterCompleteTrialUsedSubtitle(
+                locale: locale,
+                isYearly: periodUnit == .year,
+                displayPrice: displayPrice
+            )
         }
 
         if entry == .chapterComplete && showIntroPaywallDetails {
@@ -1155,5 +1157,22 @@ struct SubscriptionView: View {
         @unknown default:
             return "Start for free"
         }
+    }
+}
+
+enum SubscriptionCopy {
+    static func chapterCompleteTrialUsedSubtitle(
+        locale: AppLocale,
+        isYearly: Bool,
+        displayPrice: String
+    ) -> String {
+        if locale == .ja {
+            return isYearly
+                ? "無料トライアルは利用済みです。購入時に年額\(displayPrice)が請求されます。"
+                : "無料トライアルは利用済みです。購入時に月額\(displayPrice)が請求されます。"
+        }
+        return isYearly
+            ? "Your free trial has already been used. You will be charged \(displayPrice)/year at purchase."
+            : "Your free trial has already been used. You will be charged \(displayPrice)/month at purchase."
     }
 }

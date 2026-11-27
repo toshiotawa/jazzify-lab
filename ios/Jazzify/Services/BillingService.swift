@@ -37,8 +37,29 @@ final class BillingService: Sendable {
             throw BillingServiceError.fetchFailed
         }
 
+        return try Self.decodeBillingStatus(from: data)
+    }
+
+    static func decodeBillingStatus(from data: Data) throws -> BillingStatusResponse {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: raw) {
+                return date
+            }
+            let standard = ISO8601DateFormatter()
+            standard.formatOptions = [.withInternetDateTime]
+            if let date = standard.date(from: raw) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid ISO8601 date string: \(raw)"
+            )
+        }
         return try decoder.decode(BillingStatusResponse.self, from: data)
     }
 }
