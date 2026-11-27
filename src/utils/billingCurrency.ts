@@ -1,6 +1,6 @@
 export type BillingCurrency = 'JPY' | 'USD';
 
-export interface JapanStripeEligibilityInput {
+interface JapanStripeEligibilityInput {
   country?: string | null;
   billing_currency?: string | null;
   preferred_locale?: string | null;

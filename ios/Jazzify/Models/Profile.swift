@@ -36,13 +36,20 @@ struct Profile: Codable, Identifiable, Sendable {
     }
 }
 
-enum MembershipRank: String, Codable, Sendable {
+enum MembershipRank: String, Codable, Equatable, Sendable {
     case free
     case standard
     case standardGlobal = "standard_global"
     case premium
     case platinum
     case black
+    case coaching
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        self = MembershipRank(rawValue: raw) ?? .free
+    }
 
     var isPremium: Bool {
         self != .free

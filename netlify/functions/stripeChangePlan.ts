@@ -35,17 +35,15 @@ export const scheduleStripePlanChange = async (
   const schedule = await stripe.subscriptionSchedules.create({ from_subscription: current.id });
   const currentPhase = schedule.current_phase;
   const phaseStart = currentPhase?.start_date ?? current.current_period_start;
+  const phaseEnd = currentPhase?.end_date ?? current.current_period_end;
   const currentItem = current.items.data[0] ?? null;
   const currentPriceId = currentItem?.price.id ?? null;
   if (!currentItem || !currentPriceId) {
     throw new Error('Subscription item not found');
   }
   const quantity = currentItem.quantity ?? 1;
-    const currentPhaseTrialEnd =
-      currentPhase != null && 'trial_end' in currentPhase
-        ? (currentPhase as { trial_end?: number | null }).trial_end
-        : undefined;
-    const trialEndCandidate = currentPhaseTrialEnd ?? current.trial_end;
+  const firstPhaseTrialEnd = schedule.phases?.[0]?.trial_end;
+  const trialEndCandidate = firstPhaseTrialEnd ?? current.trial_end;
   const trialEnd =
     typeof trialEndCandidate === 'number' && trialEndCandidate > phaseStart
       ? trialEndCandidate
@@ -57,13 +55,13 @@ export const scheduleStripePlanChange = async (
       phases: [
         {
           start_date: phaseStart,
-          end_date: currentPhase?.end_date ?? current.current_period_end,
+          end_date: phaseEnd,
           items: [{ price: currentPriceId, quantity }],
           proration_behavior: 'none',
           ...(trialEnd ? { trial_end: trialEnd } : {}),
         },
         {
-          start_date: current.current_period_end,
+          start_date: phaseEnd,
           items: [{ price: targetPriceId, quantity }],
           iterations: 1,
           proration_behavior: 'none',

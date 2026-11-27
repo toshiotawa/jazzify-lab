@@ -163,6 +163,16 @@ final class BillingStatusPolicyTests: XCTestCase {
         )
     }
 
+    func testMembershipRankDecodesCoachingAndUnknownFallback() throws {
+        let coaching = try JSONDecoder().decode(MembershipRank.self, from: Data("\"coaching\"".utf8))
+        let unknown = try JSONDecoder().decode(MembershipRank.self, from: Data("\"future_rank\"".utf8))
+
+        XCTAssertEqual(coaching, .coaching)
+        XCTAssertTrue(coaching.isPremium)
+        XCTAssertEqual(unknown, .free)
+        XCTAssertFalse(unknown.isPremium)
+    }
+
     private func makeBillingStatus(
         provider: BillingProvider,
         entitlementState: EntitlementState,

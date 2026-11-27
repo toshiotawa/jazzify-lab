@@ -561,7 +561,7 @@ export const mirrorStripeSubscription = async (
       pending_plan_code: pendingPlan.pendingPlanCode,
       pending_plan_effective_at: pendingPlan.effectiveAt,
       pending_provider_variant_id: pendingPlan.pendingPriceId,
-      pending_from_provider_variant_id: pendingPlan.pendingPlanCode ? pendingPlan.pendingPriceId : null,
+      pending_from_provider_variant_id: pendingPlan.pendingPlanCode ? priceInfo.priceId : null,
       pending_effective_at_snapshot: pendingPlan.effectiveAt,
       pending_status: pendingPlan.pendingPlanCode ? 'scheduled' : null,
       pending_locked_at: null,

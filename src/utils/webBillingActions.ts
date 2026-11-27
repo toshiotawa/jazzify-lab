@@ -1,5 +1,6 @@
 import {
   cancelLemonSubscriptionRequest,
+  fetchLemonBillingLink,
   resumeLemonSubscription,
 } from '@/utils/lemonBillingClient';
 import {
@@ -7,7 +8,6 @@ import {
   fetchStripeBillingLink,
   resumeStripeSubscription,
 } from '@/utils/stripeBillingClient';
-import { fetchLemonBillingLink } from '@/utils/lemonBillingClient';
 
 type BillingProductTarget = 'premium' | 'coaching';
 
